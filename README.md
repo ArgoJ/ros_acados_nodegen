@@ -13,5 +13,5 @@ Bitte folgen Sie der offiziellen [ACADOS Installationsanleitung](https://docs.ac
 Wenn die Voraussetzungen erfüllt sind, können Sie das Paket einfach über pip installieren:
 
 ```bash
-pip install ros-acados-nodegen
+pip install .
 ```
