@@ -1,12 +1,11 @@
 ---
 applyTo: '**'
 ---
-# General Instructions for AI Code Generation
+# General Instructions
 
 ## Coding Style & Language
 - Write modern, robust C++17 code.
 - Follow ROS2 best practices.
-- Use `Eigen3` for all linear algebra and vector/matrix operations.
 - Private and protected class member variables MUST have a trailing underscore (e.g., `logger_`).
 - Prefer `std::array` over raw C-style arrays for fixed-size data.
 - Avoid raw pointers. Use `std::unique_ptr` and `std::shared_ptr` for memory management. Raw pointers are only acceptable when interfacing with C-APIs like Acados.
@@ -17,5 +16,5 @@ applyTo: '**'
 - Use the google C++ style guide for all code contributions.
 
 ## Communication
-- When answering questions about this codebase, please respond in German.
+- When answering questions about this codebase, please respond in English.
 - Provide clear, concise code examples for any new implementation.
