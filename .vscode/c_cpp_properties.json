@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/ros/humble/include/**",
+                "/usr/include/eigen3",
+                "${HOME}/acados/acados/**",
+                "${HOME}/acados/include/**",
+                "${HOME}/acados/include/acados/**",
+                "${HOME}/acados/interfaces/acados_c/**",
+                "${workspaceFolder}/${config:cpp.activePackagePath}/scripts/c_generated_code/**",
+                "${workspaceFolder}/${config:cpp.activePackagePath}/include/${config:cpp.activePackagePath}/**",
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        }
+    ],
+    "version": 4
+}

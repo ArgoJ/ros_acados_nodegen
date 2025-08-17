@@ -1,0 +1,392 @@
+#include "{{ package.name }}/{{ ros.node_name }}.h"
+
+namespace {{ package.name }}
+{
+{% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
+{{ ClassName }}::{{ ClassName }}()
+    : Node("{{ ros.node_name }}")
+{
+    RCLCPP_INFO(this->get_logger(), "Initializing {{ ros.node_name | replace('_', ' ') | title }}...");
+
+    // --- default values ---
+    config_ = {{ ClassName }}Config();
+    first_solve_ = true;
+    u0_default_ = {};
+    current_state_ = {};
+    previous_parameters_ = {};
+
+    // --- Parameters ---
+    this->setup_parameter_handlers();
+    this->declare_parameters();
+    this->load_parameters();
+    this->log_parameters();
+    param_callback_handle_ = this->add_on_set_parameters_callback(
+        std::bind(&{{ ClassName }}::on_parameter_update, this, std::placeholders::_1)
+    );
+
+    // --- Subscriber ---
+    {% for sub in ros.subscribers %}
+        {% if sub.msg_type is not none and sub.msg_type != 'None' %}
+    {{ (sub.name | lower | replace(' ', '_')) }}_sub_ = this->create_subscription<{{ cpp_type(sub.msg_type) }}>(
+        "{{ sub.topic }}", 10,
+        std::bind(&{{ ClassName }}::{{ sub.callback | default((sub.name ~ '_callback')) }}, this, std::placeholders::_1));
+        {% endif %}
+    {% endfor %}
+
+    // --- Publisher ---
+    {% for pub in ros.publishers %}
+        {% if pub.msg_type is not none and pub.msg_type != 'None' %}
+    {{ (pub.name | lower | replace(' ', '_')) }}_pub_ = this->create_publisher<{{ cpp_type(pub.msg_type) }}>(
+        "{{ pub.topic }}", {{ pub.queue_size }});
+        {% endif %}
+    {% endfor %}
+    {% if package.with_markers == true %}
+    marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+        "visualization_marker_array", 10);
+    {% endif %}
+
+    // --- Init solver ---
+    this->initialize_solver();
+}
+
+{{ ClassName }}::~{{ ClassName }}() {
+    RCLCPP_INFO(this->get_logger(), "Shutting down and freeing Acados solver memory.");
+    if (ocp_capsule_) {
+        int status = {{ acados.model.name }}_acados_free(ocp_capsule_);
+        if (status) {
+            RCLCPP_ERROR(this->get_logger(), "{{ acados.model.name }}_acados_free() returned status %d.", status);
+        }
+        status = {{ acados.model.name }}_acados_free_capsule(ocp_capsule_);
+        if (status) {
+            RCLCPP_ERROR(this->get_logger(), "{{ acados.model.name }}_acados_free_capsule() returned status %d.", status);
+        }
+    }
+}
+
+
+// --- Core Methods ---
+void {{ ClassName }}::initialize_solver() {
+    ocp_capsule_ = {{ acados.model.name }}_acados_create_capsule();
+    int status = {{ acados.model.name }}_acados_create(ocp_capsule_);
+    if (status) {
+        RCLCPP_FATAL(this->get_logger(), "{{ acados.model.name }}acados_create() failed with status %d.", status);
+        rclcpp::shutdown();
+    }
+
+    ocp_nlp_config_ = {{ acados.model.name }}_acados_get_nlp_config(ocp_capsule_);
+    ocp_nlp_dims_ = {{ acados.model.name }}_acados_get_nlp_dims(ocp_capsule_);
+    ocp_nlp_in_ = {{ acados.model.name }}_acados_get_nlp_in(ocp_capsule_);
+    ocp_nlp_out_ = {{ acados.model.name }}_acados_get_nlp_out(ocp_capsule_);
+    ocp_nlp_opts_ = {{ acados.model.name }}_acados_get_nlp_opts(ocp_capsule_);
+
+    this->set_solver_weights();
+    this->set_solver_constraints();
+
+    RCLCPP_INFO(this->get_logger(), "Acados solver initialized successfully.");
+}
+
+void {{ ClassName }}::control_loop() {
+    bool odom_ok{false}, map_ok{false};
+    std::array<double, {{ acados.model.name | upper }}_NX> x0{}; 
+    std::array<double, {{ acados.model.name | upper }}_NY0> yref0{}; 
+    std::array<double, {{ acados.model.name | upper }}_NY> yref{};
+    std::array<double, {{ acados.model.name | upper }}_NYN> yrefN{};
+
+    {
+        std::scoped_lock lock(data_mutex_);
+        // TODO: make a local copy of all relevant data
+    } 
+    
+    // Update solver
+    this->set_x0(x0.data());
+    this->set_yref0(yref0.data());
+    this->set_yrefs(yref.data());
+    this->set_yref_e(yrefN.data());
+    // TODO: parameters
+    // this->set_ocp_parameters(p.data(), p.size());
+
+    if (first_solve_) {
+        this->warmstart_states(x0.data());
+        first_solve_ = false;
+    }
+
+    // Solve OCP
+    int status = {{ acados.model.name }}_acados_solve(this->ocp_capsule_);
+    if (status != ACADOS_SUCCESS) {
+        this->publish_input(u0_default_);
+        {{ acados.model.name }}_acados_reset(ocp_capsule_, 1);
+        first_solve_ = true;
+        RCLCPP_WARN(this->get_logger(), "Solver failed with status %d. Publishing default input.", status);
+        
+        std::stringstream state_stream;
+        state_stream << current_state_;
+        RCLCPP_DEBUG(this->get_logger(), "State: %s", state_stream.str().c_str());
+
+    } else {
+        std::array<double, {{ acados.model.name | upper }}_NU> u0;
+        this->get_input(u0.data(), 0);
+        this->publish_input(u0);
+        // visualize_markers();
+    }
+}
+
+
+// --- ROS Callbacks ---
+{% for sub in ros.subscribers %}
+    {% if sub.msg_type is not none and sub.msg_type != 'None' %}
+void {{ ClassName }}::{{ sub.callback | default((sub.name ~ '_callback')) }}(const {{ cpp_type(sub.msg_type) }}::SharedPtr msg) {
+    std::scoped_lock lock(data_mutex_);
+    // TODO: make a copy of all relevant data to call in the controll loop
+}
+    {% endif %}
+{% endfor %}
+
+
+// --- ROS Publisher ---
+void {{ ClassName }}::publish_input(const std::array<double, {{ acados.model.name | upper }}_NU>& u0) {
+    // TODO: publish the input with the correct message
+    // auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+    // cmd_vel->linear.x = u0[0];
+    // cmd_vel->angular.z = u0[1];
+    // cmd_vel_pub_->publish(std::move(cmd_vel));
+}
+
+
+// --- Parameter Handling Methods ---
+void {{ ClassName }}::setup_parameter_handlers() {
+    // Constraints
+    {% for field, param in acados.constraints.items() %}
+    {% if param.value %}
+    parameter_handlers_["{{ package.name }}.constraints.{{ param.var_name }}"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            update_param_array(p, this->config_.constraints.{{ param.var_name }}, res);
+        };
+    {% endif %}
+    {% endfor %}
+
+    // Weights
+    {% for field, param in acados.weights.items() %}
+    {% if param.value %}
+    parameter_handlers_["{{ package.name }}.weights.{{ param.var_name }}"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            update_param_array(p, this->config_.weights.{{ param.var_name }}, res);
+        };
+    {% endif %}
+    {% endfor %}
+
+
+    // Other Parameters
+    // TODO: handle types
+    {% for param in ros.parameters %}
+    parameter_handlers_["{{ param.name }}"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            this->config_.{{ param.name | snake }} = p.as_string();
+        };
+    {% endfor %}
+}
+
+void {{ ClassName }}::declare_parameters() {
+    // Constraints
+    {% for field, param in acados.constraints.items() %}
+        {% if param.value %}
+    this->declare_parameter("{{ package.name }}.constraints.{{ param.var_name }}", std::vector<double>{ {{ param.value | join(', ') }} });
+        {% endif %}
+    {% endfor %}
+
+    // Weights
+    {% for field, param in acados.weights.items() %}
+        {% if param.value %}
+    this->declare_parameter("{{ package.name }}.weights.{{ param.var_name }}", std::vector<double>{ {{ param.value | join(', ') }} });
+        {% endif %}
+    {% endfor %}
+
+    // Other Parameters
+    {% for param in ros.parameters %}
+        {% if param.type == "string" %}
+    this->declare_parameter("{{ param.name }}", "{{ param.default }}");
+        {% else %}
+    this->declare_parameter("{{ param.name }}", {{ param.default }});
+        {% endif %}
+    {% endfor %}
+}
+
+void {{ ClassName }}::load_parameters() {
+    // Constraints
+    {% for field, param in acados.constraints.items() %}
+    {% if param.value %}
+    get_and_check_array_param(this, "{{ package.name }}.constraints.{{ param.var_name }}", config_.constraints.{{ param.var_name }});
+    {% endif %}
+    {% endfor %}
+
+    // Weights
+    {% for field, param in acados.weights.items() %}
+    {% if param.value %}
+    get_and_check_array_param(this, "{{ package.name }}.weights.{{ param.var_name }}", config_.weights.{{ param.var_name }});
+    {% endif %}
+    {% endfor %}
+
+    // Other Parameters
+    {% for param in ros.parameters %}
+    this->get_parameter("{{ param.name }}", config_.{{ param.name | snake }});
+    {% endfor %}
+}
+
+void {{ ClassName }}::log_parameters() {
+    const int label_width = 25;
+    std::stringstream ss;
+
+    // Bauen Sie den gesamten String zusammen
+    ss << "\n----- {{ acados.model.name | upper }} MPC Configuration -----";
+    // Constraints
+    {% for field, param in acados.constraints.items() %}
+    {% if param.value %}
+    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.constraints.{{ param.var_name }};
+    {% endif %}
+    {% endfor %}
+
+    // Weights
+    {% for field, param in acados.weights.items() %}
+    {% if param.value %}
+    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.weights.{{ param.var_name }};
+    {% endif %}
+    {% endfor %}
+    
+    // Other Parameters
+    {% for param in ros.parameters %}
+    ss << "\n" << std::left << std::setw(label_width) << "{{ param.name | replace('_', ' ') | title }}" << " = " << config_.{{ param.name | snake }};
+    {% endfor %}
+    ss << "\n" << "--------------------------------------";
+
+    // Geben Sie den finalen String auf einmal aus
+    RCLCPP_DEBUG(this->get_logger(), "%s", ss.str().c_str());
+}
+
+rcl_interfaces::msg::SetParametersResult {{ ClassName }}::on_parameter_update(
+    const std::vector<rclcpp::Parameter>& params
+) {
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+
+    for (const auto& param : params) {
+        auto& param_name = param.get_name();
+
+        if (parameter_handlers_.count(param_name)) {
+            parameter_handlers_.at(param_name)(param, result);
+        } else {
+            result.reason = "Update for unknown parameter '%s' received.", param_name.c_str();
+            result.successful = false;
+        }
+    }
+
+    if (result.successful){
+        this->set_solver_constraints();
+        this->set_solver_weights();
+        this->log_parameters();
+    }
+    return result;
+}
+
+
+{% if package.with_markers == true %}
+// --- ROS Visualizer ---
+void {{ ClassName }}::visualize_markers() {
+    // TODO: collect the correct markers
+    // auto marker_points = get_marker_points(
+    //     some_geometry_points,
+    //     "map",
+    //     this->get_clock(),
+    //     Color{0.0, 1.0, 0.0},
+    //     "something",
+    //     0,
+    //     0.05,
+    //     1.0,
+    //     visualization_msgs::msg::Marker::LINE_STRIP
+    // );
+
+    // publish_marker_array(marker_pub_, marker_points);
+}
+{% endif %}
+
+
+// --- Helper & Utility Methods ---
+void {{ ClassName }}::get_input(double* u, int stage) {
+    ocp_nlp_out_get(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, stage, "u", u);
+}
+
+void {{ ClassName }}::get_state(double* x, int stage) {
+    ocp_nlp_out_get(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, stage, "x", x);
+}
+
+void {{ ClassName }}::set_x0(double* x0) {
+    ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, 0, "lbx", x0);
+    ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, 0, "ubx", x0);
+}
+
+void {{ ClassName }}::set_yref0(double* yref0) {
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "yref", yref0);
+}
+
+void {{ ClassName }}::set_yref(double* yref, int stage) {
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, stage, "yref", yref);
+}
+
+void {{ ClassName }}::set_yref_e(double* yrefN) {
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, {{ acados.model.name | upper }}_N, "yref", yrefN);
+}
+
+void {{ ClassName }}::set_yrefs(double* yref) {
+    for (int i = 0; i <= {{ acados.model.name | upper }}_N; i++) {
+        this->set_yref(yref, i);
+    }
+}
+
+void {{ ClassName }}::set_ocp_parameter(double* p, size_t np, int stage) {
+    {{ acados.model.name }}_acados_update_params(ocp_capsule_, stage, p, np);
+}
+
+void {{ ClassName }}::set_ocp_parameters(double* p, size_t np) {
+    for (int i = 0; i <= {{ acados.model.name | upper }}_N; i++) {
+        this->set_ocp_parameter(p, np, i);
+    }
+}
+
+void {{ ClassName }}::set_solver_weights() {
+    // TODO
+    return;
+}
+
+void {{ ClassName }}::set_solver_constraints() {
+    // TODO
+    // double lbx[{{ acados.model.name | upper }}_NX] = {};
+    // double ubx[{{ acados.model.name | upper }}_NX] = {};
+
+    // for (int i=0; i < {{ acados.model.name | upper }}_N; i++) {
+    //     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, i+1, "lbx", lbx);
+    //     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, i+1, "ubx", ubx);
+    // }
+    return;
+}
+
+void {{ ClassName }}::warmstart_states(double* x0) {
+    for (int i = 1; i <= {{ acados.model.name | upper }}_N; ++i) {
+        ocp_nlp_out_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, ocp_nlp_in_, i, "x", x0);
+    }
+}
+
+void {{ ClassName }}::warmstart_inputs(double* u0) {
+    for (int i = 0; i < {{ acados.model.name | upper }}_N; ++i) {
+        ocp_nlp_out_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, ocp_nlp_in_, i, "u", u0);
+    }
+}
+
+} // namespace {{ package.name }}
+
+
+// --- Main Funktion ---
+int main(int argc, char **argv) {
+    rclcpp::init(argc, argv);
+    auto node = std::make_shared<{{ package.name }}::{{ ClassName }}>();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    return 0;
+}

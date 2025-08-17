@@ -1,0 +1,88 @@
+#ifndef {{ package.name | upper }}_UTILS_HPP
+#define {{ package.name | upper }}_UTILS_HPP
+
+#include <rclcpp/rclcpp.hpp>
+#include <ostream>
+#include <vector>
+#include <array>
+#include <algorithm>
+// #include <Eigen/Dense>
+
+template <size_t N>
+std::ostream& operator<<(std::ostream& os, const double (&arr)[N]) {
+    os << "[";
+    for (size_t i = 0; i < N; ++i) {
+        os << arr[i];
+        if (i + 1 < N) os << ", ";
+    }
+    os << "]";
+    return os;
+}
+
+template <typename T, size_t N>
+std::ostream& operator<<(std::ostream& os, const std::array<T, N>& arr) {
+    os << "[";
+    for (size_t i = 0; i < N; ++i) {
+        os << arr[i];
+        if (i < N - 1) os << ", ";
+    }
+    os << "]";
+    return os;
+}
+
+// template <typename T, int Rows, int Cols>
+// std::ostream& operator<<(std::ostream& os, const Eigen::Matrix<T, Rows, Cols>& mat) {
+//     os << "[";
+//     if (mat.rows() == 1 || mat.cols() == 1) {
+//         for (Eigen::Index i = 0; i < mat.size(); ++i) {
+//             os << mat(i);
+//             if (i < mat.size() - 1) os << ", ";
+//         }
+//     } else {
+//         for (Eigen::Index i = 0; i < mat.rows(); ++i) {
+//             for (Eigen::Index j = 0; j < mat.cols(); ++j) {
+//                 os << mat(i, j);
+//                 if (j < mat.cols() - 1) os << ", ";
+//             }
+//             if (i < mat.rows() - 1) os << ";\n ";
+//         }
+//     }
+//     os << "]";
+//     return os;
+// }
+
+namespace {{ package.name }} 
+{
+
+template <size_t N>
+void get_and_check_array_param(rclcpp::Node* node, const std::string& param_name, std::array<double, N>& destination) {
+    auto param_value = node->get_parameter(param_name).as_double_array();
+
+    if (param_value.size() != N) {
+        RCLCPP_ERROR(node->get_logger(), "Parameter '%s' has the wrong size. Expected: %ld, got: %ld",
+                     param_name.c_str(), N, param_value.size());
+        return;
+    }
+    std::copy_n(param_value.begin(), N, destination.begin());
+}
+
+template <size_t N>
+void update_param_array(const rclcpp::Parameter& param, 
+                        std::array<double, N>& destination_array,
+                        rcl_interfaces::msg::SetParametersResult& result)
+{
+    auto values = param.as_double_array();
+
+    if (values.size() != N) {
+        result.successful = false;
+        result.reason = "Parameter '" + param.get_name() + "' has size " +
+                        std::to_string(values.size()) + ", but expected is " + std::to_string(N) + ".";
+        return;
+    }
+
+    std::copy_n(values.begin(), N, destination_array.begin());
+}
+
+} // namepace {{ package.name }}
+
+#endif // {{ package.name | upper }}_UTILS_HPP

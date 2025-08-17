@@ -1,0 +1,169 @@
+cmake_minimum_required(VERSION 3.8)
+project({{ package.name }})
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# --- ACADOS SCRIPT ---
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+if(NOT VENV_PATH)
+    message(WARN "Using default acados venv executable path. Please provide the path to the Python executable in your venv via --cmake-args -DVENV_PATH=/path/to/venv.")
+    set(VENV_PATH "$ENV{HOME}/.acados_env")
+endif()
+# This is needed to get the directory of the activate script.
+set(VENV_ACTIVATE_SCRIPT ${VENV_PATH}/bin/activate)
+set(ACADOS_GENERATED_CODE_DIR ${CMAKE_CURRENT_BINARY_DIR}/c_generated_code)
+set(ACADOS_GENERATED_LIB ${ACADOS_GENERATED_CODE_DIR}/libacados_ocp_solver_{{ acados.model.name | lower }}.so)
+set(ACADOS_PYTHON_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/scripts/{{ script_path | basename }})
+
+add_custom_command(
+    OUTPUT ${ACADOS_GENERATED_LIB}
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_solver.sh
+            ${VENV_ACTIVATE_SCRIPT}
+            ${ACADOS_PYTHON_SCRIPT}
+            ${ACADOS_GENERATED_CODE_DIR}
+
+    DEPENDS ${ACADOS_PYTHON_SCRIPT} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_solver.sh
+    COMMENT "Generating ACADOS solver via wrapper script..."
+    USES_TERMINAL 
+)
+
+add_custom_target(generate_acados_code
+    DEPENDS ${ACADOS_GENERATED_LIB}
+)
+
+# --- ROS Abhängigkeiten ---
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(OpenMP REQUIRED)
+{% for dep in package.dependencies %}
+    {% if dep and (dep | lower) != 'none' %}
+find_package({{ dep }} REQUIRED)
+    {% endif %}
+{% endfor %}
+{% if package.with_markers == true %}
+find_package(visualization_msgs REQUIRED)
+{% endif %}
+
+# --- ACADOS ---
+set(ACADOS_SOURCE_DIR_VAR "$ENV{ACADOS_SOURCE_DIR}")
+if(NOT EXISTS ${ACADOS_SOURCE_DIR_VAR})
+    set(ACADOS_SOURCE_DIR_VAR "$ENV{HOME}/acados")
+    message(NOTICE "Using default Acados directory ${ACADOS_SOURCE_DIR_VAR}. Export ACADOS_SOURCE_DIR path for another one.")
+endif()
+set(ACADOS_INCLUDE_PATH ${ACADOS_SOURCE_DIR_VAR}/include)
+if(NOT EXISTS ${ACADOS_INCLUDE_PATH})
+    message(FATAL_ERROR "Acados include directory not found: ${ACADOS_INCLUDE_PATH}")
+endif()
+set(ACADOS_LIB_DIR ${ACADOS_SOURCE_DIR_VAR}/lib)
+if(NOT EXISTS ${ACADOS_LIB_DIR})
+    message(FATAL_ERROR "Acados lib directory not found: ${ACADOS_LIB_DIR}")
+endif()
+
+
+# --- EXECUTABLE ---
+add_executable({{ ros.node_name }} 
+    src/{{ ros.node_name }}.cpp
+)
+
+add_dependencies({{ ros.node_name }} generate_acados_code)
+
+# --- INCLUDE DIRECTORIES ---
+include_directories(
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    ${ACADOS_GENERATED_CODE_DIR}
+    ${ACADOS_INCLUDE_PATH}
+    ${ACADOS_INCLUDE_PATH}/acados
+    ${ACADOS_INCLUDE_PATH}/blasfeo/include
+    ${ACADOS_INCLUDE_PATH}/hpipm/include
+    ${ACADOS_INCLUDE_PATH}/osqp
+    ${ACADOS_INCLUDE_PATH}/qpOASES_e
+)
+
+# Include Directories
+target_include_directories({{ ros.node_name }} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+# Link Libraries
+target_link_libraries({{ ros.node_name }} 
+    ${ACADOS_GENERATED_LIB}
+    ${ACADOS_LIB_DIR}/libacados.so
+    ${ACADOS_LIB_DIR}/libblasfeo.so
+    ${ACADOS_LIB_DIR}/libhpipm.so
+    ${ACADOS_LIB_DIR}/libosqp.so
+    ${ACADOS_LIB_DIR}/libqpOASES_e.so
+    m
+    OpenMP::OpenMP_CXX
+)
+
+# --- DEPENDENCIES ---
+set(COMMON_DEPENDENCIES 
+    rclcpp
+    {% for dep in package.dependencies %}
+        {% if dep and (dep | lower) != 'none' %}
+    {{ dep }}
+        {% endif %}
+    {% endfor %}
+    {% if package.with_markers == true %}
+    visualization_msgs
+    {% endif %}
+)
+
+ament_target_dependencies({{ ros.node_name }} ${COMMON_DEPENDENCIES})
+
+# --- INSTALLATIONS ---
+install(FILES 
+    ${ACADOS_GENERATED_LIB}
+    DESTINATION lib
+)
+
+install(DIRECTORY 
+    ${ACADOS_GENERATED_CODE_DIR}/
+    DESTINATION include/${PROJECT_NAME}/generated_acados
+)
+
+# install(DIRECTORY
+#     launch
+#     DESTINATION share/${PROJECT_NAME}
+# )
+
+# install(DIRECTORY
+#     config
+#     DESTINATION share/${PROJECT_NAME}
+# )
+
+install(DIRECTORY 
+    include/
+    DESTINATION include
+)
+
+install(TARGETS 
+    {{ ros.node_name }}
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+# --- EXPORTS ---
+ament_export_include_directories(
+    "include"
+    ${ACADOS_INCLUDE_PATH}
+    ${ACADOS_INCLUDE_PATH}/acados
+    ${ACADOS_INCLUDE_PATH}/acados_c
+    ${ACADOS_INCLUDE_PATH}/blasfeo/include
+    ${ACADOS_INCLUDE_PATH}/hpipm/include
+    ${ACADOS_INCLUDE_PATH}/osqp
+    ${ACADOS_INCLUDE_PATH}/qpOASES_e
+)
+
+ament_export_libraries(
+    acados_ocp_solver_{{ acados.model.name | lower }}
+    ${ACADOS_LIB_DIR}/libacados.so
+    ${ACADOS_LIB_DIR}/libblasfeo.so
+    ${ACADOS_LIB_DIR}/libhpipm.so
+    ${ACADOS_LIB_DIR}/libosqp.so
+    ${ACADOS_LIB_DIR}/libqpOASES_e.so
+)
+ament_package()

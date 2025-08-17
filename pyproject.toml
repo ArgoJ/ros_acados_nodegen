@@ -1,0 +1,44 @@
+# pyproject.toml
+
+# ==============================================================================
+# 1. Build-System Konfiguration
+# ==============================================================================
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+
+# ==============================================================================
+# 2. Projekt-Metadaten und Abhängigkeiten
+# ==============================================================================
+[project]
+name = "ros_acados_nodegen"
+version = "0.1.0"
+authors = [
+  { name = "Lindemann, Josua", email = "josua.lindemann@outlook.de" },
+]
+description = "Ein Codegenerator für ROS Nodes, die Acados Solver verwenden."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "jinja2",      # Für das Template-Rendering
+    "pyyaml",      # Zum Einlesen der YAML-Konfigurationsdateien
+    # "acados_template" # Die Python-Schnittstelle von Acados
+]
+
+
+# ==============================================================================
+# 3. Optionale Skripte (Sehr nützlich!)
+# ==============================================================================
+[project.scripts]
+generate-node = "ros_acados_nodegen.generator:main"
+
+
+[tool.setuptools.package-data]
+ros_acados_nodegen = ["templates/*.j2"]

@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug ros_acados_nodegen.generator (module)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ros_acados_nodegen.generator",
+            "args": [
+                "examples/scripts/c_generated_code/safety_filter_ocp.json",
+                "ros_acados_nodegen/config/default_config.yaml",
+                // "--set", "acados.model.name=sf_mpc",
+                "--set", "package.name=mpc_pkg",
+                "--set", "package.license=Apache-2.0",
+            ],
+            "python": "${command:python.interpreterPath}",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

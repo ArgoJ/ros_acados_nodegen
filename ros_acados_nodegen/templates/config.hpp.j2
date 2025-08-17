@@ -1,0 +1,172 @@
+#ifndef {{ ros.node_name | upper }}_CONFIG_H
+#define {{ ros.node_name | upper }}_CONFIG_H
+
+#include <array>
+#include <vector>
+#include "acados_solver_{{ acados.model.name }}.h"
+
+
+namespace {{ package.name }}
+{
+{% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
+
+struct {{ ClassName }}Constraints {
+    {% if acados.constraints.lbx.value or acados.constraints.lbx_e.value %}
+    // States Bounds
+    {% endif %}
+    {% if acados.constraints.lbx.value %}
+    std::array<double, {{ acados.model.name | upper }}_NBX> lbx = {};
+    std::array<double, {{ acados.model.name | upper }}_NBX> ubx = {};
+    {% endif %}
+    {% if acados.constraints.lbx_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NBXN> lbx_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NBXN> ubx_e = {};
+    {% endif %}
+    {% if acados.constraints.lbu.value %}
+
+    // Input Bounds
+    std::array<double, {{ acados.model.name | upper }}_NBU> lbu = {};
+    std::array<double, {{ acados.model.name | upper }}_NBU> ubu = {};
+    {% endif %}
+    {% if acados.constraints.lh_0.value or acados.constraints.lh.value or acados.constraints.lh_e.value %}
+
+    // Nonlinear Constraints Bounds (h)
+    {% endif %}
+    {% if acados.constraints.lh_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NH0> lh_0 = {};
+    std::array<double, {{ acados.model.name | upper }}_NH0> uh_0 = {};
+    {% endif %}
+    {% if acados.constraints.lh.value %}
+    std::array<double, {{ acados.model.name | upper }}_NH> lh = {};
+    std::array<double, {{ acados.model.name | upper }}_NH> uh = {};
+    {% endif %}
+    {% if acados.constraints.lh_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NHN> lh_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NHN> uh_e = {};
+    {% endif %}
+    {% if acados.constraints.lphi_0.value or acados.constraints.lphi.value or acados.constraints.lphi_e.value %}
+
+    // Nonlinear Phase Constraints Bounds (phi)
+    {% endif %}
+    {% if acados.constraints.lphi_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NPHI0> lphi_0 = {};
+    std::array<double, {{ acados.model.name | upper }}_NPHI0> uphi_0 = {};
+    {% endif %}
+    {% if acados.constraints.lphi.value %}
+    std::array<double, {{ acados.model.name | upper }}_NPHI> lphi = {};
+    std::array<double, {{ acados.model.name | upper }}_NPHI> uphi = {};
+    {% endif %}
+    {% if acados.constraints.lphi_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NPHIN> lphi_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NPHIN> uphi_e = {};
+    {% endif %}
+    {% if acados.constraints.lg.value or acados.constraints.lg_e.value %}
+
+    // General Polytopic Inequalities Bounds (g)
+    {% endif %}
+    {% if acados.constraints.lg.value %}
+    std::array<double, {{ acados.model.name | upper }}_NG> lg = {};
+    std::array<double, {{ acados.model.name | upper }}_NG> ug = {};
+    {% endif %}
+    {% if acados.constraints.lg_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NGN> lg_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NGN> ug_e = {};
+    {% endif %}
+    {% if acados.constraints.lsbx.value or acados.constraints.lsbx_e.value %}
+
+    // State Slack Bounds
+    {% endif %}
+    {% if acados.constraints.lsbx.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSBX> lsbx = {};
+    std::array<double, {{ acados.model.name | upper }}_NSBX> usbx = {};
+    {% endif %}
+    {% if acados.constraints.lsbx_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSBXN> lsbx_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NSBXN> usbx_e = {};
+    {% endif %}
+    {% if acados.constraints.lsbu.value %}
+
+    // Input Slack Bounds
+    std::array<double, {{ acados.model.name | upper }}_NSBU> lsbu = {};
+    std::array<double, {{ acados.model.name | upper }}_NSBU> usbu = {};
+    {% endif %}
+    {% if acados.constraints.lsh_0.value or acados.constraints.lsh.value or acados.constraints.lsh_e.value %}
+
+    // Nonlinear Slack Bounds (sh)
+    {% endif %}
+    {% if acados.constraints.lsh_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSH0> lsh_0 = {};
+    std::array<double, {{ acados.model.name | upper }}_NSH0> ush_0 = {};
+    {% endif %}
+    {% if acados.constraints.lsh.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSH> lsh = {};
+    std::array<double, {{ acados.model.name | upper }}_NSH> ush = {};
+    {% endif %}
+    {% if acados.constraints.lsh_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSHN> lsh_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NSHN> ush_e = {};
+    {% endif %}
+    {% if acados.constraints.lsphi_0.value or acados.constraints.lsphi.value or acados.constraints.lsphi_e.value %}
+
+    // Nonlinear Phase Slack Bounds (sphi)
+    {% endif %}
+    {% if acados.constraints.lsphi_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSPHI0> lsphi_0 = {};
+    std::array<double, {{ acados.model.name | upper }}_NSPHI0> usphi_0 = {};
+    {% endif %}
+    {% if acados.constraints.lsphi.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSPHI> lsphi = {};
+    std::array<double, {{ acados.model.name | upper }}_NSPHI> usphi = {};
+    {% endif %}
+    {% if acados.constraints.lsphi_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSPHIN> lsphi_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NSPHIN> usphi_e = {};
+    {% endif %}
+    {% if acados.constraints.lsg.value or acados.constraints.lsg_e.value %}
+
+    // General Polytopic Slack Bounds (sg)
+    {% endif %}
+    {% if acados.constraints.lsg.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSG> lsg = {};
+    std::array<double, {{ acados.model.name | upper }}_NSG> usg = {};
+    {% endif %}
+    {% if acados.constraints.lsg_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NSGN> lsg_e = {};
+    std::array<double, {{ acados.model.name | upper }}_NSGN> usg_e = {};
+    {% endif %}
+};
+
+struct {{ ClassName }}Weights {
+    {% if acados.weights.W_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> W_0 = {};
+    {% endif %}
+    {% if acados.weights.W.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> W = {};
+    {% endif %}
+    {% if acados.weights.W_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> W_e = {};
+    {% endif %}
+};
+
+struct {{ ClassName }}Config {
+    {{ ClassName }}Constraints constraints = {{ ClassName }}Constraints();
+    {{ ClassName }}Weights weights = {{ ClassName }}Weights();
+    std::array<double, {{ acados.model.name | upper }}_NP> parameter_values = {};
+    {% for param in ros.parameters %}
+    {% if param.type == "array<double>" %}
+    std::array<double, {{ param.size }}> {{ param.name }} = {};
+    {% elif param.type == "string" %}
+    std::string {{ param.name }} = "";
+    {% elif param.type == "double" %}
+    double {{ param.name }} = 0.0;
+    {% elif param.type == "int" %}
+    int {{ param.name }} = 0;
+    {% else %}
+    {{ param.type }} {{ param.name }} = ;
+    {% endif %}
+    {% endfor %}
+};
+
+}
+
+#endif // {{ ros.node_name | upper }}_CONFIG_H

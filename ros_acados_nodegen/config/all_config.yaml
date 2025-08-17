@@ -1,0 +1,46 @@
+# Basic information
+package:
+  name: "mpc"
+  version: "0.0.1"
+  description: "Ein MPC-Controller, der mit Ros-Acados-Nodegen generiert wurde."
+  author_email: "dein.name@email.com"
+  author_name: "Dein Name"
+  license: "MIT"
+  with_markers: true
+
+  dependencies:
+    # - rclcpp
+    # - eigen
+    - tf2_ros
+
+# Ros dependencies
+ros:
+  node_name: "mpc_node"
+  # ROS-Parameter for the Node
+  parameters:
+    - name: "default_parameter"
+      type: "string"
+      default: "Just there to annoy :D"
+
+  # Subscriber
+  subscribers:
+    - name: "state"
+      topic: "/odom"
+      type: "nav_msgs/Odometry"
+      callback: "odom_callback"
+    - name: "map"
+      topic: "/map"
+      type: "nav_msgs/OccupancyGrid"
+      callback: "map_callback"
+
+  # Publisher
+  publishers:
+    - name: "input"
+      topic: "/cmd_vel"
+      type: "geometry_msgs/Twist"
+      queue_size: 10
+
+# Acados things
+acados:
+    model:
+      name: "mpc"
