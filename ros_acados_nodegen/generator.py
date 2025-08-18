@@ -26,7 +26,6 @@ def generate_ros_package(solver_path, install_path=None, config_path=None, **kwa
     else:
         context = RosPackageContext()
     context.acados = AcadosContext.from_solver_json(solver_path)
-    context.script_path = Path(__file__).parent.parent / "examples" / "scripts" / "safety_filter_mpc.py"
 
     if kwargs:
         kwargs = parse_dot_key_value(kwargs)

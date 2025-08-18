@@ -70,7 +70,10 @@ class RosPackageGenerator:
 
     def copy_scripts_folder(self):
         """Kopiert den gesamten Scripts-Ordner in das Zielpaket."""
-        source_scripts_dir = Path(self.context.script_path).parent 
+        source_scripts_dir = Path(self.context.script_path).parent
+        if not source_scripts_dir.exists() and not source_scripts_dir.is_absolute():
+            source_scripts_dir = (Path.cwd() / source_scripts_dir).resolve()
+
         dest_scripts_dir = self.package_path / SCRIPTS_DIR
 
         ignore_patterns = ['__pycache__']

@@ -1,0 +1,101 @@
+# Script path
+script_path: "path/to/your/script"
+
+# Basic information
+package:
+  name: "mpc"
+  version: "0.0.1"
+  description: "An MPC-Controller ROS2 package using Acados."
+  author_email: "your.name@email.com"
+  author_name: "Your Name"
+  license: "MIT"
+  with_markers: true
+
+  dependencies:
+    - tf2_ros
+
+# Ros dependencies
+ros:
+  node_name: "mpc_node"
+  parameters:
+    - name: "default_parameter"
+      type: "string"
+      default: "Hello World"
+
+  # Subscriber
+  subscribers:
+    - name: "state"
+      topic: "/odom"
+      type: "nav_msgs/Odometry"
+      callback: "odom_callback"
+    - name: "map"
+      topic: "/map"
+      type: "nav_msgs/OccupancyGrid"
+      callback: "map_callback"
+
+  # Publisher
+  publishers:
+    - name: "input"
+      topic: "/cmd_vel"
+      type: "geometry_msgs/Twist"
+      queue_size: 10
+
+# Acados things
+acados:
+    model:
+        name: ""
+    solver:
+        nlp_solver_type: ""
+
+    constraints:
+        lbu: []
+        lbx: []
+        lbx_0: []
+        lbx_e: []
+        lg: []
+        lg_e: []
+        lh: []
+        lh_0: []
+        lh_e: []
+        lphi: []
+        lphi_0: []
+        lphi_e: []
+        lsbu: []
+        lsbx: []
+        lsbx_e: []
+        lsg: []
+        lsg_e: []
+        lsh: []
+        lsh_0: []
+        lsh_e: []
+        lsphi: []
+        lsphi_0: []
+        lsphi_e: []
+        ubu: []
+        ubx: []
+        ubx_0: []
+        ubx_e: []
+        ug: []
+        ug_e: []
+        uh: []
+        uh_0: []
+        uh_e: []
+        uphi: []
+        uphi_0: []
+        uphi_e: []
+        usbu: []
+        usbx: []
+        usbx_e: []
+        usg: []
+        usg_e: []
+        ush: []
+        ush_0: []
+        ush_e: []
+        usphi: []
+        usphi_0: []
+        usphi_e: []
+
+    weights:
+        W_0: []
+        W: []
+        W_e: []

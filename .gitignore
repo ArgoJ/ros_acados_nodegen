@@ -4,7 +4,9 @@ build
 .venv
 
 
-**/c_generated_code/*
-**/__pycache__/*
+**/c_generated_code
+**/__pycache__
 
 *.egg-info
+
+**/my_package

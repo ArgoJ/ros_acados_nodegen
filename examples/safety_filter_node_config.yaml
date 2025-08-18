@@ -1,3 +1,6 @@
+# Script path
+script_path: "scripts/safety_filter_mpc.py"
+
 # Basic information
 package:
   name: "safety_filter"
@@ -36,8 +39,3 @@ ros:
       topic: "/cmd_vel"
       type: "geometry_msgs/Twist"
       queue_size: 10
-
-# Acados things
-acados:
-    model:
-      name: "agilex"
