@@ -174,13 +174,24 @@ void {{ ClassName }}::setup_parameter_handlers() {
     {% endif %}
     {% endfor %}
 
-
     // Other Parameters
-    // TODO: handle types
     {% for param in ros.parameters %}
     parameter_handlers_["{{ param.name }}"] =
         [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
-            this->config_.{{ param.name | snake }} = p.as_string();
+            try {
+                {% if param.type == "string" %}
+                this->config_.{{ param.name | snake }} = p.as_string();
+                {% elif param.type == "double" or param.type == "float" %}
+                this->config_.{{ param.name | snake }} = p.as_double();
+                {% elif param.type == "int" %}
+                this->config_.{{ param.name | snake }} = p.as_int();
+                {% elif param.type == "bool" %}
+                this->config_.{{ param.name | snake }} = p.as_bool();
+                {% endif %}
+            } catch (const std::exception& e) {
+                res.reason = "Failed to set parameter '" + p.get_name() + "': " + e.what();
+                res.successful = false;
+            }
         };
     {% endfor %}
 }
@@ -340,6 +351,7 @@ void {{ ClassName }}::set_yrefs(double* yref) {
     }
 }
 
+{% if acados.parameter_values %}
 void {{ ClassName }}::set_ocp_parameter(double* p, size_t np, int stage) {
     {{ acados.model.name }}_acados_update_params(ocp_capsule_, stage, p, np);
 }
@@ -349,21 +361,64 @@ void {{ ClassName }}::set_ocp_parameters(double* p, size_t np) {
         this->set_ocp_parameter(p, np, i);
     }
 }
+{% endif %}
 
 void {{ ClassName }}::set_solver_weights() {
-    // TODO
+    {% if acados.weights.W_0.value %}
+    auto W_0 = diag_from_vec(config_.weights.W_0);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "W", W_0.data());
+    {% endif %}
+    {% if acados.weights.W.value %}
+
+    auto W = diag_from_vec(config_.weights.W);
+    for (int i = 1; i < {{ acados.model.name | upper }}_N; i++) {
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "W", W.data());
+    }
+    {% endif %}
+    {% if acados.weights.W_e.value %}
+
+    auto W_e = diag_from_vec(config_.weights.W_e);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, {{ acados.model.name | upper }}_N, "W", W_e.data());
+    {% endif %}
     return;
 }
 
 void {{ ClassName }}::set_solver_constraints() {
-    // TODO
-    // double lbx[{{ acados.model.name | upper }}_NX] = {};
-    // double ubx[{{ acados.model.name | upper }}_NX] = {};
+    {% set has_init = namespace(v=False) %}
+    {% set has_term = namespace(v=False) %}
+    {% for _, p in acados.constraints.items() %}
+        {% if p.value and p.name.endswith('_0') %}
+            {% set has_init.v = True %}
+        {% elif p.value and p.name.endswith('_e') %}
+            {% set has_term.v = True %}
+        {% endif %}
+    {% endfor %}
+    {% if has_init.v %}
+    // Initial Constraints
+    {% for field, param in acados.constraints.items() %}
+    {% if param.value and param.name.endswith('_0') %}
+    ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, 0, "{{ param.name }}", config_.constraints.{{ param.name }}.data());
+    {% endif %}
+    {% endfor %}
 
-    // for (int i=0; i < {{ acados.model.name | upper }}_N; i++) {
-    //     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, i+1, "lbx", lbx);
-    //     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, i+1, "ubx", ubx);
-    // }
+    {% endif %}
+    // Stage Constraints
+    for (int i=1; i < {{ acados.model.name | upper }}_N; i++) {
+        {% for field, param in acados.constraints.items() %}
+        {% if param.value and (not param.name.endswith('_0')) and (not param.name.endswith('_e')) %}
+        ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, i, "{{ param.name }}", config_.constraints.{{ param.name }}.data());
+        {% endif %}
+        {% endfor %}
+    }
+    {% if has_term.v %}
+
+    // Terminal Constraints
+    {% for field, param in acados.constraints.items() %}
+    {% if param.value and param.name.endswith('_e') %}
+    ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, {{ acados.model.name | upper }}_N, "{{ param.name }}", config_.constraints.{{ param.name }}.data());
+    {% endif %}
+    {% endfor %}
+    {% endif %}
     return;
 }
 

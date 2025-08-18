@@ -7,9 +7,10 @@
             "request": "launch",
             "module": "ros_acados_nodegen.generator",
             "args": [
-                "examples/scripts/c_generated_code/safety_filter_ocp.json",
-                "ros_acados_nodegen/config/all_configs.yaml",
+                "${workspaceFolder}/examples/scripts/c_generated_code/safety_filter_ocp.json",
+                "${workspaceFolder}/ros_acados_nodegen/config/all_configs.yaml",
                 // "--set", "acados.model.name=sf_mpc",
+                "--set", "script_path=${workspaceFolder}/examples/scripts/safety_filter_mpc.py",
                 "--set", "package.name=mpc_pkg",
                 "--set", "package.license=Apache-2.0",
             ],

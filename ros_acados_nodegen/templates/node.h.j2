@@ -126,8 +126,10 @@ private:
     void set_yref(double* yref, int stage);
     void set_yref_e(double* yref);
     void set_yrefs(double* yref);
+    {% if acados.parameter_values %}
     void set_ocp_parameter(double* p, size_t np, int stage);
     void set_ocp_parameters(double* p, size_t np);
+    {% endif %}
 
     void warmstart_inputs(double* u0);
     void warmstart_states(double* x0);
