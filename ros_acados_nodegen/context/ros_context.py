@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 class ParameterContext(BaseModel):
     name: str          = "my_parameter"
     type: str          = "float"
-    default: Any       = 0.0
+    value: Any         = 0.0
     description: str   = "A parameter for my package"
 
 class SubscriberContext(BaseModel):

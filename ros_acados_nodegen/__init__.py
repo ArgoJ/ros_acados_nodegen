@@ -1,6 +1,6 @@
 import logging
 from .utils.logger import setup_logging
-setup_logging(logging.DEBUG)
+setup_logging(logging.WARNING)
 
 from .generator import generate_ros_package
 

@@ -17,7 +17,7 @@ colcon build --packages-select {{ package.name }} && source install/setup.bash
 ```
 e.g.:
 ```bash
-colcon build --packages-select {{ package.name }} --event-handlers console_direct+ --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=1
+colcon build --packages-select {{ package.name }} --event-handlers console_direct+ --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=1  && source install/setup.bash
 ```
 
 ## Usage

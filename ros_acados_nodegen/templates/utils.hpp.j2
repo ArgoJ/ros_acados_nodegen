@@ -51,9 +51,6 @@ std::ostream& operator<<(std::ostream& os, const std::array<T, N>& arr) {
 //     return os;
 // }
 
-namespace {{ package.name }} 
-{
-
 template <size_t N>
 void get_and_check_array_param(rclcpp::Node* node, const std::string& param_name, std::array<double, N>& destination) {
     auto param_value = node->get_parameter(param_name).as_double_array();
@@ -82,7 +79,5 @@ void update_param_array(const rclcpp::Parameter& param,
 
     std::copy_n(values.begin(), N, destination_array.begin());
 }
-
-} // namepace {{ package.name }}
 
 #endif // {{ package.name | upper }}_UTILS_HPP

@@ -4,14 +4,23 @@ from .renderer.package_generator import *
 from .context import RosPackageContext, AcadosContext
 from .utils.context_utils import parse_dot_key_value, parse_args_values, deep_update
 
-from pprint import pprint
-
 
 def generate_ros_package(solver_path, install_path=None, config_path=None, **kwargs):
     """
-    Generiert ein ROS-Package mit einer mehrschichtigen Konfiguration.
-    """
+    Generate a ROS package based on an Acados solver. 
     
+    Parameters
+    ----------
+    solver_path : str
+        Path to the Acados solver JSON file.
+    install_path : str, optional
+        Path to the installation directory.
+    config_path : str, optional
+        Path to the ROS package configuration YAML file.
+    **kwargs : dict
+        Additional keyword arguments to override context values.  
+        They must have dot-separated keys (e.g. "package.name").
+    """
     if config_path:
         context = RosPackageContext.from_yaml(config_path)
     else:
@@ -31,9 +40,8 @@ def generate_ros_package(solver_path, install_path=None, config_path=None, **kwa
     # pprint(context.model_dump(mode="python"))
     generator = RosPackageGenerator(context, install_path)
     generator.generate_all()
-    
 
-if __name__ == "__main__":
+def main():
     import argparse
     from pathlib import Path
     
@@ -45,3 +53,6 @@ if __name__ == "__main__":
 
     kwargs = parse_args_values(args.set)
     generate_ros_package(args.solver_json_path, config_path=args.config_path, **kwargs)
+
+if __name__ == "__main__":
+    main()

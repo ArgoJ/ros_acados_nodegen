@@ -162,7 +162,7 @@ struct {{ ClassName }}Config {
     {% elif param.type == "int" %}
     int {{ param.name }} = 0;
     {% else %}
-    {{ param.type }} {{ param.name }} = ;
+    {{ param.type }} {{ param.name }} = {{ param.value }};
     {% endif %}
     {% endfor %}
 };

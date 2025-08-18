@@ -1,17 +1,17 @@
 # Ros Acados Nodegen
-
-Ein Codegenerator für ROS Nodes, die Acados Solver verwenden.
-
-## Voraussetzungen
-
-Bevor Sie dieses Tool verwenden können, muss der **ACADOS-Solver** auf Ihrem System installiert und korrekt eingerichtet sein. 
-
-Bitte folgen Sie der offiziellen [ACADOS Installationsanleitung](https://docs.acados.org/installation/index.html), um den Solver zu installieren.
+A Codegenerator for ROS2 Nodes, that use a generated acados solver. 
+The `generate_ros_package` function creates a ROS2 package based on some `acados_solver.json` file. 
+The generated `CMakeLists.txt` is build so that the acados C code files are generated during each build.
 
 ## Installation
-
-Wenn die Voraussetzungen erfüllt sind, können Sie das Paket einfach über pip installieren:
-
+The package can be installed easily with:
 ```bash
 pip install .
 ```
+
+### Acados Installation
+If you want to install acados, you can use:
+```bash
+acados-install --qpoases --omp -e
+```
+This will install acados with qpoases and omp, while also exporting the relevant paths for acados. 

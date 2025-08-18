@@ -1,5 +1,5 @@
 {
-    "cpp.activePackagePath": "mpc_pkg",
+    "cpp.activePackagePath": "safety_filter",
     "python.autoComplete.extraPaths": [
         "/opt/ros/humble/lib/python3.10/site-packages"
     ],

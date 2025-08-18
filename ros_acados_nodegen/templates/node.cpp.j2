@@ -157,9 +157,9 @@ void {{ ClassName }}::setup_parameter_handlers() {
     // Constraints
     {% for field, param in acados.constraints.items() %}
     {% if param.value %}
-    parameter_handlers_["{{ package.name }}.constraints.{{ param.var_name }}"] =
+    parameter_handlers_["{{ package.name }}.constraints.{{ param.name }}"] =
         [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
-            update_param_array(p, this->config_.constraints.{{ param.var_name }}, res);
+            update_param_array(p, this->config_.constraints.{{ param.name }}, res);
         };
     {% endif %}
     {% endfor %}
@@ -167,9 +167,9 @@ void {{ ClassName }}::setup_parameter_handlers() {
     // Weights
     {% for field, param in acados.weights.items() %}
     {% if param.value %}
-    parameter_handlers_["{{ package.name }}.weights.{{ param.var_name }}"] =
+    parameter_handlers_["{{ package.name }}.weights.{{ param.name }}"] =
         [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
-            update_param_array(p, this->config_.weights.{{ param.var_name }}, res);
+            update_param_array(p, this->config_.weights.{{ param.name }}, res);
         };
     {% endif %}
     {% endfor %}
@@ -189,23 +189,23 @@ void {{ ClassName }}::declare_parameters() {
     // Constraints
     {% for field, param in acados.constraints.items() %}
         {% if param.value %}
-    this->declare_parameter("{{ package.name }}.constraints.{{ param.var_name }}", std::vector<double>{ {{ param.value | join(', ') }} });
+    this->declare_parameter("{{ package.name }}.constraints.{{ param.name }}", std::vector<double>{ {{ param.value | join(', ') }} });
         {% endif %}
     {% endfor %}
 
     // Weights
     {% for field, param in acados.weights.items() %}
         {% if param.value %}
-    this->declare_parameter("{{ package.name }}.weights.{{ param.var_name }}", std::vector<double>{ {{ param.value | join(', ') }} });
+    this->declare_parameter("{{ package.name }}.weights.{{ param.name }}", std::vector<double>{ {{ param.value | join(', ') }} });
         {% endif %}
     {% endfor %}
 
     // Other Parameters
     {% for param in ros.parameters %}
         {% if param.type == "string" %}
-    this->declare_parameter("{{ param.name }}", "{{ param.default }}");
+    this->declare_parameter("{{ param.name }}", "{{ param.value }}");
         {% else %}
-    this->declare_parameter("{{ param.name }}", {{ param.default }});
+    this->declare_parameter("{{ param.name }}", {{ param.value }});
         {% endif %}
     {% endfor %}
 }
@@ -214,14 +214,14 @@ void {{ ClassName }}::load_parameters() {
     // Constraints
     {% for field, param in acados.constraints.items() %}
     {% if param.value %}
-    get_and_check_array_param(this, "{{ package.name }}.constraints.{{ param.var_name }}", config_.constraints.{{ param.var_name }});
+    get_and_check_array_param(this, "{{ package.name }}.constraints.{{ param.name }}", config_.constraints.{{ param.name }});
     {% endif %}
     {% endfor %}
 
     // Weights
     {% for field, param in acados.weights.items() %}
     {% if param.value %}
-    get_and_check_array_param(this, "{{ package.name }}.weights.{{ param.var_name }}", config_.weights.{{ param.var_name }});
+    get_and_check_array_param(this, "{{ package.name }}.weights.{{ param.name }}", config_.weights.{{ param.name }});
     {% endif %}
     {% endfor %}
 
@@ -240,14 +240,14 @@ void {{ ClassName }}::log_parameters() {
     // Constraints
     {% for field, param in acados.constraints.items() %}
     {% if param.value %}
-    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.constraints.{{ param.var_name }};
+    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.constraints.{{ param.name }};
     {% endif %}
     {% endfor %}
 
     // Weights
     {% for field, param in acados.weights.items() %}
     {% if param.value %}
-    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.weights.{{ param.var_name }};
+    ss << "\n" << std::left << std::setw(label_width) << "{{ param.log_label }}" << " = " << config_.weights.{{ param.name }};
     {% endif %}
     {% endfor %}
     

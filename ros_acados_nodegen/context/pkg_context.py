@@ -1,5 +1,4 @@
-from typing import Any
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 class PackageContext(BaseModel):
     name: str          = "my_package"

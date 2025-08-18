@@ -15,7 +15,7 @@ build-backend = "setuptools.build_meta"
 name = "ros_acados_nodegen"
 version = "0.1.0"
 authors = [
-  { name = "Lindemann, Josua", email = "josua.lindemann@outlook.de" },
+  { name = "Lindemann, Josua", email = "josch961@gmail.com" },
 ]
 description = "Ein Codegenerator für ROS Nodes, die Acados Solver verwenden."
 readme = "README.md"
@@ -27,17 +27,17 @@ classifiers = [
 ]
 
 dependencies = [
-    "jinja2",      # Für das Template-Rendering
-    "pyyaml",      # Zum Einlesen der YAML-Konfigurationsdateien
-    # "acados_template" # Die Python-Schnittstelle von Acados
+    "jinja2",
+    "pyyaml",
+    "pydantic",
 ]
 
 
 # ==============================================================================
-# 3. Optionale Skripte (Sehr nützlich!)
+# 3. Optionale Skripte
 # ==============================================================================
 [project.scripts]
-generate-node = "ros_acados_nodegen.generator:main"
+acados-install = "ros_acados_nodegen.acados_installer:main"
 
 
 [tool.setuptools.package-data]

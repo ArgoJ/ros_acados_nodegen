@@ -1,8 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from pprint import pprint
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ def get_diagonal(matrix: list) -> list[float]:
 
 
 class ValueContext(BaseModel):
-    var_name: str = "acados_name"
+    name: str = "acados_name"
     log_label: str = "This Value"
     value: list[float] = Field(default=list)
 
@@ -31,68 +30,68 @@ class AcadosSolverOptionsContext(BaseModel):
     
 class AcadosConstraintsContext(BaseModel):
     # States Bounds
-    lbx: ValueContext = Field(default=ValueContext(var_name="lbx", log_label="Lower Bound X"))
-    ubx: ValueContext = Field(default=ValueContext(var_name="ubx", log_label="Upper Bound X"))
-    lbx_e: ValueContext = Field(default=ValueContext(var_name="lbx_e", log_label="Lower Bound X Terminal"))
-    ubx_e: ValueContext = Field(default=ValueContext(var_name="ubx_e", log_label="Upper Bound X Terminal"))
+    lbx: ValueContext = Field(default=ValueContext(name="lbx", log_label="Lower Bound X"))
+    ubx: ValueContext = Field(default=ValueContext(name="ubx", log_label="Upper Bound X"))
+    lbx_e: ValueContext = Field(default=ValueContext(name="lbx_e", log_label="Lower Bound X Terminal"))
+    ubx_e: ValueContext = Field(default=ValueContext(name="ubx_e", log_label="Upper Bound X Terminal"))
 
     # State Slack Bounds
-    lsbx: ValueContext = Field(default=ValueContext(var_name="lsbx", log_label="Lower Slack Bound X"))
-    usbx: ValueContext = Field(default=ValueContext(var_name="usbx", log_label="Upper Slack Bound X"))
-    lsbx_e: ValueContext = Field(default=ValueContext(var_name="lsbx_e", log_label="Lower Slack Bound X Terminal"))
-    usbx_e: ValueContext = Field(default=ValueContext(var_name="usbx_e", log_label="Upper Slack Bound X Terminal"))
+    lsbx: ValueContext = Field(default=ValueContext(name="lsbx", log_label="Lower Slack Bound X"))
+    usbx: ValueContext = Field(default=ValueContext(name="usbx", log_label="Upper Slack Bound X"))
+    lsbx_e: ValueContext = Field(default=ValueContext(name="lsbx_e", log_label="Lower Slack Bound X Terminal"))
+    usbx_e: ValueContext = Field(default=ValueContext(name="usbx_e", log_label="Upper Slack Bound X Terminal"))
 
     # Input Bounds
-    lbu: ValueContext = Field(default=ValueContext(var_name="lbu", log_label="Lower Bound U"))
-    ubu: ValueContext = Field(default=ValueContext(var_name="ubu", log_label="Upper Bound U"))
+    lbu: ValueContext = Field(default=ValueContext(name="lbu", log_label="Lower Bound U"))
+    ubu: ValueContext = Field(default=ValueContext(name="ubu", log_label="Upper Bound U"))
 
     # Input Slack Bounds
-    lsbu: ValueContext = Field(default=ValueContext(var_name="lsbu", log_label="Lower Slack Bound U"))
-    usbu: ValueContext = Field(default=ValueContext(var_name="usbu", log_label="Upper Slack Bound U"))
+    lsbu: ValueContext = Field(default=ValueContext(name="lsbu", log_label="Lower Slack Bound U"))
+    usbu: ValueContext = Field(default=ValueContext(name="usbu", log_label="Upper Slack Bound U"))
 
     # Nonlinear Bounds
-    lh: ValueContext = Field(default=ValueContext(var_name="lh", log_label="Lower Bound H"))
-    uh: ValueContext = Field(default=ValueContext(var_name="uh", log_label="Upper Bound H"))
-    lh_0: ValueContext = Field(default=ValueContext(var_name="lh_0", log_label="Lower Bound H Initial"))
-    uh_0: ValueContext = Field(default=ValueContext(var_name="uh_0", log_label="Upper Bound H Initial"))
-    lh_e: ValueContext = Field(default=ValueContext(var_name="lh_e", log_label="Lower Bound H Terminal"))
-    uh_e: ValueContext = Field(default=ValueContext(var_name="uh_e", log_label="Upper Bound H Terminal"))
+    lh: ValueContext = Field(default=ValueContext(name="lh", log_label="Lower Bound H"))
+    uh: ValueContext = Field(default=ValueContext(name="uh", log_label="Upper Bound H"))
+    lh_0: ValueContext = Field(default=ValueContext(name="lh_0", log_label="Lower Bound H Initial"))
+    uh_0: ValueContext = Field(default=ValueContext(name="uh_0", log_label="Upper Bound H Initial"))
+    lh_e: ValueContext = Field(default=ValueContext(name="lh_e", log_label="Lower Bound H Terminal"))
+    uh_e: ValueContext = Field(default=ValueContext(name="uh_e", log_label="Upper Bound H Terminal"))
 
     # Nonlinear Slack Bounds
-    lsh: ValueContext = Field(default=ValueContext(var_name="lsh", log_label="Lower Bound H"))
-    ush: ValueContext = Field(default=ValueContext(var_name="ush", log_label="Upper Bound H"))
-    lsh_0: ValueContext = Field(default=ValueContext(var_name="lsh_0", log_label="Lower Bound H Initial"))
-    ush_0: ValueContext = Field(default=ValueContext(var_name="ush_0", log_label="Upper Bound H Initial"))
-    lsh_e: ValueContext = Field(default=ValueContext(var_name="lsh_e", log_label="Lower Bound H Terminal"))
-    ush_e: ValueContext = Field(default=ValueContext(var_name="ush_e", log_label="Upper Bound H Terminal"))
+    lsh: ValueContext = Field(default=ValueContext(name="lsh", log_label="Lower Bound H"))
+    ush: ValueContext = Field(default=ValueContext(name="ush", log_label="Upper Bound H"))
+    lsh_0: ValueContext = Field(default=ValueContext(name="lsh_0", log_label="Lower Bound H Initial"))
+    ush_0: ValueContext = Field(default=ValueContext(name="ush_0", log_label="Upper Bound H Initial"))
+    lsh_e: ValueContext = Field(default=ValueContext(name="lsh_e", log_label="Lower Bound H Terminal"))
+    ush_e: ValueContext = Field(default=ValueContext(name="ush_e", log_label="Upper Bound H Terminal"))
 
     # Nonlinear Phase Bounds
-    lphi: ValueContext = Field(default=ValueContext(var_name="lphi", log_label="Lower Bound Phi"))
-    uphi: ValueContext = Field(default=ValueContext(var_name="uphi", log_label="Upper Bound Phi"))
-    lphi_0: ValueContext = Field(default=ValueContext(var_name="lphi_0", log_label="Lower Bound Phi Initial"))
-    uphi_0: ValueContext = Field(default=ValueContext(var_name="uphi_0", log_label="Upper Bound Phi Initial"))
-    lphi_e: ValueContext = Field(default=ValueContext(var_name="lphi_e", log_label="Lower Bound Phi Terminal"))
-    uphi_e: ValueContext = Field(default=ValueContext(var_name="uphi_e", log_label="Upper Bound Phi Terminal"))
+    lphi: ValueContext = Field(default=ValueContext(name="lphi", log_label="Lower Bound Phi"))
+    uphi: ValueContext = Field(default=ValueContext(name="uphi", log_label="Upper Bound Phi"))
+    lphi_0: ValueContext = Field(default=ValueContext(name="lphi_0", log_label="Lower Bound Phi Initial"))
+    uphi_0: ValueContext = Field(default=ValueContext(name="uphi_0", log_label="Upper Bound Phi Initial"))
+    lphi_e: ValueContext = Field(default=ValueContext(name="lphi_e", log_label="Lower Bound Phi Terminal"))
+    uphi_e: ValueContext = Field(default=ValueContext(name="uphi_e", log_label="Upper Bound Phi Terminal"))
 
     # Nonlinear Phase Slack Bounds
-    lsphi: ValueContext = Field(default=ValueContext(var_name="lsphi", log_label="Lower Bound Phi Slack"))
-    usphi: ValueContext = Field(default=ValueContext(var_name="usphi", log_label="Upper Bound Phi Slack"))
-    lsphi_0: ValueContext = Field(default=ValueContext(var_name="lsphi_0", log_label="Lower Bound Phi Initial Slack"))
-    usphi_0: ValueContext = Field(default=ValueContext(var_name="usphi_0", log_label="Upper Bound Phi Initial Slack"))
-    lsphi_e: ValueContext = Field(default=ValueContext(var_name="lsphi_e", log_label="Lower Bound Phi Terminal Slack"))
-    usphi_e: ValueContext = Field(default=ValueContext(var_name="usphi_e", log_label="Upper Bound Phi Terminal Slack"))
+    lsphi: ValueContext = Field(default=ValueContext(name="lsphi", log_label="Lower Bound Phi Slack"))
+    usphi: ValueContext = Field(default=ValueContext(name="usphi", log_label="Upper Bound Phi Slack"))
+    lsphi_0: ValueContext = Field(default=ValueContext(name="lsphi_0", log_label="Lower Bound Phi Initial Slack"))
+    usphi_0: ValueContext = Field(default=ValueContext(name="usphi_0", log_label="Upper Bound Phi Initial Slack"))
+    lsphi_e: ValueContext = Field(default=ValueContext(name="lsphi_e", log_label="Lower Bound Phi Terminal Slack"))
+    usphi_e: ValueContext = Field(default=ValueContext(name="usphi_e", log_label="Upper Bound Phi Terminal Slack"))
 
     # General Polytopic Inequalities Bounds
-    lg: ValueContext = Field(default=ValueContext(var_name="lg", log_label="Lower Bound G"))
-    ug: ValueContext = Field(default=ValueContext(var_name="ug", log_label="Upper Bound G"))
-    lg_e: ValueContext = Field(default=ValueContext(var_name="lg_e", log_label="Lower Bound G Terminal"))
-    ug_e: ValueContext = Field(default=ValueContext(var_name="ug_e", log_label="Upper Bound G Terminal"))
+    lg: ValueContext = Field(default=ValueContext(name="lg", log_label="Lower Bound G"))
+    ug: ValueContext = Field(default=ValueContext(name="ug", log_label="Upper Bound G"))
+    lg_e: ValueContext = Field(default=ValueContext(name="lg_e", log_label="Lower Bound G Terminal"))
+    ug_e: ValueContext = Field(default=ValueContext(name="ug_e", log_label="Upper Bound G Terminal"))
 
     # General Polytopic Inequalities Slack Bounds
-    lsg: ValueContext = Field(default=ValueContext(var_name="lsg", log_label="Lower Bound G Slack"))
-    usg: ValueContext = Field(default=ValueContext(var_name="usg", log_label="Upper Bound G Slack"))
-    lsg_e: ValueContext = Field(default=ValueContext(var_name="lsg_e", log_label="Lower Bound G Terminal Slack"))
-    usg_e: ValueContext = Field(default=ValueContext(var_name="usg_e", log_label="Upper Bound G Terminal Slack"))
+    lsg: ValueContext = Field(default=ValueContext(name="lsg", log_label="Lower Bound G Slack"))
+    usg: ValueContext = Field(default=ValueContext(name="usg", log_label="Upper Bound G Slack"))
+    lsg_e: ValueContext = Field(default=ValueContext(name="lsg_e", log_label="Lower Bound G Terminal Slack"))
+    usg_e: ValueContext = Field(default=ValueContext(name="usg_e", log_label="Upper Bound G Terminal Slack"))
 
     @classmethod
     def values_only(cls, **kwargs) -> 'AcadosConstraintsContext':
@@ -106,9 +105,9 @@ class AcadosConstraintsContext(BaseModel):
 
 
 class AcadosWeightsContext(BaseModel):
-    W_0: ValueContext = Field(default=ValueContext(var_name="W_0", log_label="Initial Weight"))
-    W: ValueContext = Field(default=ValueContext(var_name="W", log_label="Stage Weight"))
-    W_e: ValueContext = Field(default=ValueContext(var_name="W_e", log_label="Terminal Weight"))
+    W_0: ValueContext = Field(default=ValueContext(name="W_0", log_label="Initial Weight"))
+    W: ValueContext = Field(default=ValueContext(name="W", log_label="Stage Weight"))
+    W_e: ValueContext = Field(default=ValueContext(name="W_e", log_label="Terminal Weight"))
     
     @classmethod
     def values_only(cls, **kwargs) -> 'AcadosWeightsContext':
