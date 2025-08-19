@@ -27,7 +27,9 @@ class AcadosModelContext(BaseModel):
     
 class AcadosSolverOptionsContext(BaseModel):
     nlp_solver_type: str = "SQP_RTI"
-    
+    warmstart_first: bool = True
+    warmstart: bool = False
+
 class AcadosConstraintsContext(BaseModel):
     # States Bounds
     lbx: ValueContext = Field(default=ValueContext(name="lbx", log_label="Lower Bound X"))
@@ -118,6 +120,22 @@ class AcadosWeightsContext(BaseModel):
                 processed_data[field_name] = default_field.model_copy(update={'value': field_value})
                 
         return cls.model_validate(processed_data)
+    
+
+class AcadosReferencesContext(BaseModel):
+    yref_0: ValueContext = Field(default=ValueContext(name="yref_0", log_label="Initial Reference"))
+    yref: ValueContext = Field(default=ValueContext(name="yref", log_label="Stage Reference"))
+    yref_e: ValueContext = Field(default=ValueContext(name="yref_e", log_label="Terminal Reference"))
+
+    @classmethod
+    def values_only(cls, **kwargs) -> 'AcadosReferencesContext':
+        processed_data = {}
+        for field_name, field_value in kwargs.items():
+            if field_name in cls.model_fields and isinstance(field_value, list):
+                default_field: ValueContext = cls.model_fields[field_name].default
+                processed_data[field_name] = default_field.model_copy(update={'value': field_value})
+                
+        return cls.model_validate(processed_data)
 
 
 class AcadosContext(BaseModel):
@@ -125,9 +143,10 @@ class AcadosContext(BaseModel):
     solver: AcadosSolverOptionsContext = Field(default=AcadosSolverOptionsContext)
     constraints: AcadosConstraintsContext = Field(default=AcadosConstraintsContext)
     weights: AcadosWeightsContext = Field(default=AcadosWeightsContext)
-    parameter_values: list = Field(default=list)
-    
-    
+    references: AcadosReferencesContext = Field(default=AcadosReferencesContext)
+    parameter_values: ValueContext = Field(default=ValueContext(name="parameter_values", log_label="Parameter Values"))
+    x0: ValueContext = Field(default=ValueContext(name="x0", log_label="Initial State"))
+
     @classmethod
     def from_solver_json(cls, solver_path: str) -> 'AcadosContext':
         """
@@ -168,5 +187,7 @@ class AcadosContext(BaseModel):
             solver=AcadosSolverOptionsContext(**solver_options), 
             constraints=AcadosConstraintsContext.values_only(**constraints_options), 
             weights=AcadosWeightsContext.values_only(**processed_weights), 
-            parameter_values=data.get("parameter_values", [])
+            references=AcadosReferencesContext.values_only(**cost_options), 
+            parameter_values=ValueContext(value=data.get("parameter_values", [])),
+            x0=ValueContext(value=constraints_options.get("lbx_0", [])),
         )

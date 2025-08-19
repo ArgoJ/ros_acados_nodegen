@@ -64,6 +64,7 @@ private:
     {% if package.with_markers == true %}
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
     {% endif %}
+    rclcpp::TimerBase::SharedPtr control_timer_;
     OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
     using ParamHandler = std::function<void(const rclcpp::Parameter&, rcl_interfaces::msg::SetParametersResult&)>;
     std::unordered_map<std::string, ParamHandler> parameter_handlers_;
@@ -81,8 +82,19 @@ private:
     {{ ClassName }}Config config_;
     bool first_solve_;
     std::array<double, {{ acados.model.name | upper }}_NU> u0_default_;
-    std::array<double, {{ acados.model.name | upper }}_NX> current_state_;
-    std::array<double, {{ acados.model.name | upper }}_NP> previous_parameters_;
+    std::array<double, {{ acados.model.name | upper }}_NX> current_x_;
+    {% if acados.references.yref_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> current_yref_0_;
+    {% endif %}
+    {% if acados.references.yref.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> current_yref_;
+    {% endif %}
+    {% if acados.references.yref_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> current_yref_e_;
+    {% endif %}
+    {% if acados.parameter_values.value %}
+    std::array<double, {{ acados.model.name | upper }}_NP> current_p_;
+    {% endif %}
 
 public:
     {{ ClassName }}();
@@ -109,13 +121,23 @@ private:
     void load_parameters();
     void log_parameters();
     rcl_interfaces::msg::SetParametersResult on_parameter_update(const std::vector<rclcpp::Parameter>& params);
-
     {% if package.with_markers == true %}
+
     // --- ROS Visualizer ---
     void visualize_markers();
     {% endif %}
 
-    // --- Acados Utility ---
+    // --- Helpers ---
+    void start_control_timer(double rate_hz = 50.0);
+
+    // --- Acados Helpers ---
+    {% if acados.solver.nlp_solver_type == "SQP_RTI" %}
+    bool prepare_rti_solve();
+    bool feedback_rti_solve();
+    {% else %}
+    bool ocp_solve();
+    {% endif %}
+
     void get_input(double* u, int stage);
     void get_state(double* x, int stage);
     
@@ -126,13 +148,15 @@ private:
     void set_yref(double* yref, int stage);
     void set_yref_e(double* yref);
     void set_yrefs(double* yref);
-    {% if acados.parameter_values %}
+    {% if acados.parameter_values.value %}
     void set_ocp_parameter(double* p, size_t np, int stage);
     void set_ocp_parameters(double* p, size_t np);
     {% endif %}
+    {% if acados.solver.warmstart or acados.solver.warmstart_first %}
 
     void warmstart_inputs(double* u0);
     void warmstart_states(double* x0);
+    {% endif %}
 };
 
 } // namespace {{ package.name }}

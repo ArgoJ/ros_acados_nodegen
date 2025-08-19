@@ -12,7 +12,7 @@ package:
   with_markers: true
 
   dependencies:
-    - tf2_ros
+    # - tf2_ros
 
 # Ros dependencies
 ros:

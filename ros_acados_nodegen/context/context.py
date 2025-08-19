@@ -15,6 +15,8 @@ class RosPackageContext(BaseModel):
     acados: AcadosContext   = Field(default_factory=lambda: AcadosContext(validate_assignment=True))
 
     def model_post_init(self, __context: Any | None = None) -> None:
+        if self.package.dependencies is None:
+            self.package.dependencies = set()
         self.add_msg_dependencies(self.ros.publishers + self.ros.subscribers)
 
     @classmethod

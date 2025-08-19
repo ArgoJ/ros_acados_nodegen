@@ -10,10 +10,23 @@ namespace {{ package.name }}
 
     // --- default values ---
     config_ = {{ ClassName }}Config();
+    {% if acados.solver.warmstart_first %}
     first_solve_ = true;
+    {% endif %}
     u0_default_ = {};
-    current_state_ = {};
-    previous_parameters_ = {};
+    current_x_ = { {{ acados.x0.value | join(', ') }} };
+    {% if acados.references.yref_0.value %}
+    current_yref_0_ = { {{ acados.references.yref_0.value | join(', ') }} };
+    {% endif %}
+    {% if acados.references.yref.value %}
+    current_yref_ = { {{ acados.references.yref.value | join(', ') }} };
+    {% endif %}
+    {% if acados.references.yref_e.value %}
+    current_yref_e_ = { {{ acados.references.yref_e.value | join(', ') }} };
+    {% endif %}
+    {% if acados.parameter_values.value %}
+    current_p_ = { {{ acados.parameter_values.value | join(', ') }} };
+    {% endif %}
 
     // --- Parameters ---
     this->setup_parameter_handlers();
@@ -47,6 +60,7 @@ namespace {{ package.name }}
 
     // --- Init solver ---
     this->initialize_solver();
+    this->start_control_timer(50.0);
 }
 
 {{ ClassName }}::~{{ ClassName }}() {
@@ -86,48 +100,79 @@ void {{ ClassName }}::initialize_solver() {
 }
 
 void {{ ClassName }}::control_loop() {
-    bool odom_ok{false}, map_ok{false};
+    // TODO: check for received msgs first
     std::array<double, {{ acados.model.name | upper }}_NX> x0{}; 
+    {% if acados.references.yref_0.value %}
     std::array<double, {{ acados.model.name | upper }}_NY0> yref0{}; 
+    {% endif %}
+    {% if acados.references.yref.value %}
     std::array<double, {{ acados.model.name | upper }}_NY> yref{};
+    {% endif %}
+    {% if acados.references.yref_e.value %}
     std::array<double, {{ acados.model.name | upper }}_NYN> yrefN{};
+    {% endif %}
+    {% if acados.parameter_values.value %}
+    std::array<double, {{ acados.model.name | upper }}_NP> p{};
+    {% endif %}
 
     {
         std::scoped_lock lock(data_mutex_);
-        // TODO: make a local copy of all relevant data
+        x0 = current_x_;
+        {% if acados.references.yref_0.value %}
+        yref0 = current_yref_0_;
+        {% endif %}
+        {% if acados.references.yref.value %}
+        yref = current_yref_;
+        {% endif %}
+        {% if acados.references.yref_e.value %}
+        yrefN = current_yref_e_;
+        {% endif %}
+        {% if acados.parameter_values.value %}
+        p = current_p_;
+        {% endif %}
     } 
     
     // Update solver
     this->set_x0(x0.data());
+    {% if acados.references.yref_0.value %}
     this->set_yref0(yref0.data());
+    {% endif %}
+    {% if acados.references.yref.value %}
     this->set_yrefs(yref.data());
+    {% endif %}
+    {% if acados.references.yref_e.value %}
     this->set_yref_e(yrefN.data());
-    // TODO: parameters
-    // this->set_ocp_parameters(p.data(), p.size());
+    {% endif %}
+    {% if acados.parameter_values.value %}
+    this->set_ocp_parameters(p.data(), p.size());
+    {% endif %}
 
+    {% if acados.solver.warmstart_first %}
     if (first_solve_) {
         this->warmstart_states(x0.data());
         first_solve_ = false;
     }
+    {% endif %}
+    {% if acados.solver.warmstart %}
+    this->warmstart_states(x0.data());
+    {% endif %}
 
     // Solve OCP
-    int status = {{ acados.model.name }}_acados_solve(this->ocp_capsule_);
-    if (status != ACADOS_SUCCESS) {
-        this->publish_input(u0_default_);
-        {{ acados.model.name }}_acados_reset(ocp_capsule_, 1);
-        first_solve_ = true;
-        RCLCPP_WARN(this->get_logger(), "Solver failed with status %d. Publishing default input.", status);
-        
-        std::stringstream state_stream;
-        state_stream << current_state_;
-        RCLCPP_DEBUG(this->get_logger(), "State: %s", state_stream.str().c_str());
-
-    } else {
+    if ({% if acados.solver.nlp_solver_type == "SQP_RTI" %} feedback_rti_solve() {% else %} ocp_solve() {% endif %}) {
         std::array<double, {{ acados.model.name | upper }}_NU> u0;
         this->get_input(u0.data(), 0);
         this->publish_input(u0);
-        // visualize_markers();
+        {% if package.with_markers == true %}
+        visualize_markers();
+        {% endif %}
+    } else {
+        this->publish_input(u0_default_);
+        RCLCPP_INFO(this->get_logger(), "Publishing default input.");
     }
+    {% if acados.solver.nlp_solver_type == "SQP_RTI" %}
+
+    this->prepare_rti_solve();
+    {% endif %}
 }
 
 
@@ -238,7 +283,7 @@ void {{ ClassName }}::load_parameters() {
 
     // Other Parameters
     {% for param in ros.parameters %}
-    this->get_parameter("{{ param.name }}", config_.{{ param.name | snake }});
+    this->get_parameter("{{ package.name }}.{{ param.name }}", config_.{{ param.name | snake }});
     {% endfor %}
 }
 
@@ -296,9 +341,9 @@ rcl_interfaces::msg::SetParametersResult {{ ClassName }}::on_parameter_update(
     }
     return result;
 }
-
-
 {% if package.with_markers == true %}
+
+
 // --- ROS Visualizer ---
 void {{ ClassName }}::visualize_markers() {
     // TODO: collect the correct markers
@@ -319,7 +364,52 @@ void {{ ClassName }}::visualize_markers() {
 {% endif %}
 
 
-// --- Helper & Utility Methods ---
+// --- Helpers ---
+void {{ ClassName }}::start_control_timer(double rate_hz) {
+    if (rate_hz <= 0.0) rate_hz = 50.0;
+    auto period = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::duration<double>(1.0 / rate_hz));
+    control_timer_ = this->create_wall_timer(
+        period,
+        std::bind(&{{ ClassName }}::control_loop, this)
+    );
+}
+
+
+// --- Acados Helpers ---
+{% if acados.solver.nlp_solver_type == 'SQP_RTI' %}
+bool {{ ClassName }}::prepare_rti_solve() {
+    int phase = PREPARATION;
+    ocp_nlp_sqp_rti_opts_set(ocp_nlp_config_, ocp_nlp_opts_, "rti_phase", &phase);
+    int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
+    if (status != ACADOS_SUCCESS && status != ACADOS_READY) {
+        RCLCPP_ERROR(this->get_logger(), "Solver failed at preperation phase: %d", status);
+        return false;
+    }
+    return true;
+}
+
+bool {{ ClassName }}::feedback_rti_solve() {
+    int phase = FEEDBACK;
+    ocp_nlp_sqp_rti_opts_set(ocp_nlp_config_, ocp_nlp_opts_, "rti_phase", &phase);
+    int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
+    if (status != ACADOS_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "Solver failed at feedback phase: %d", status);
+        return false;
+    }
+    return true;
+}
+{% else %}
+bool {{ ClassName }}::ocp_solve() {
+    int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
+    if (status != ACADOS_SUCCESS) {
+        RCLCPP_ERROR(this->get_logger(), "Solver failed with status: %d", status);
+        return false;
+    }
+    return true;
+}
+{% endif %}
+
 void {{ ClassName }}::get_input(double* u, int stage) {
     ocp_nlp_out_get(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, stage, "u", u);
 }
@@ -350,8 +440,8 @@ void {{ ClassName }}::set_yrefs(double* yref) {
         this->set_yref(yref, i);
     }
 }
+{% if acados.parameter_values.value %}
 
-{% if acados.parameter_values %}
 void {{ ClassName }}::set_ocp_parameter(double* p, size_t np, int stage) {
     {{ acados.model.name }}_acados_update_params(ocp_capsule_, stage, p, np);
 }
@@ -421,6 +511,7 @@ void {{ ClassName }}::set_solver_constraints() {
     {% endif %}
     return;
 }
+{% if acados.solver.warmstart or acados.solver.warmstart_first %}
 
 void {{ ClassName }}::warmstart_states(double* x0) {
     for (int i = 1; i <= {{ acados.model.name | upper }}_N; ++i) {
@@ -433,6 +524,7 @@ void {{ ClassName }}::warmstart_inputs(double* u0) {
         ocp_nlp_out_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_out_, ocp_nlp_in_, i, "u", u0);
     }
 }
+{% endif %}
 
 } // namespace {{ package.name }}
 
