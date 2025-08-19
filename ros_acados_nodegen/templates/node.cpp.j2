@@ -158,7 +158,12 @@ void {{ ClassName }}::control_loop() {
     {% endif %}
 
     // Solve OCP
-    if ({% if acados.solver.nlp_solver_type == "SQP_RTI" %} feedback_rti_solve() {% else %} ocp_solve() {% endif %}) {
+    {% if acados.solver.nlp_solver_type == "SQP_RTI" %} 
+    int status = this->feedback_rti_solve();
+    {% else %}
+    int status = this->ocp_solve();
+    {% endif %}
+    if (status == ACADOS_SUCCESS) {
         std::array<double, {{ acados.model.name | upper }}_NU> u0;
         this->get_input(u0.data(), 0);
         this->publish_input(u0);
@@ -384,9 +389,8 @@ bool {{ ClassName }}::prepare_rti_solve() {
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
     if (status != ACADOS_SUCCESS && status != ACADOS_READY) {
         RCLCPP_ERROR(this->get_logger(), "Solver failed at preperation phase: %d", status);
-        return false;
     }
-    return true;
+    return status;
 }
 
 bool {{ ClassName }}::feedback_rti_solve() {
@@ -395,18 +399,16 @@ bool {{ ClassName }}::feedback_rti_solve() {
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
     if (status != ACADOS_SUCCESS) {
         RCLCPP_ERROR(this->get_logger(), "Solver failed at feedback phase: %d", status);
-        return false;
     }
-    return true;
+    return status;
 }
 {% else %}
 bool {{ ClassName }}::ocp_solve() {
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
     if (status != ACADOS_SUCCESS) {
         RCLCPP_ERROR(this->get_logger(), "Solver failed with status: %d", status);
-        return false;
     }
-    return true;
+    return status;
 }
 {% endif %}
 
