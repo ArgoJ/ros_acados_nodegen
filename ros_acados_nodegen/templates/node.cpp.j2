@@ -383,7 +383,7 @@ void {{ ClassName }}::start_control_timer(double rate_hz) {
 
 // --- Acados Helpers ---
 {% if acados.solver.nlp_solver_type == 'SQP_RTI' %}
-bool {{ ClassName }}::prepare_rti_solve() {
+int {{ ClassName }}::prepare_rti_solve() {
     int phase = PREPARATION;
     ocp_nlp_sqp_rti_opts_set(ocp_nlp_config_, ocp_nlp_opts_, "rti_phase", &phase);
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
@@ -393,7 +393,7 @@ bool {{ ClassName }}::prepare_rti_solve() {
     return status;
 }
 
-bool {{ ClassName }}::feedback_rti_solve() {
+int {{ ClassName }}::feedback_rti_solve() {
     int phase = FEEDBACK;
     ocp_nlp_sqp_rti_opts_set(ocp_nlp_config_, ocp_nlp_opts_, "rti_phase", &phase);
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
@@ -403,7 +403,7 @@ bool {{ ClassName }}::feedback_rti_solve() {
     return status;
 }
 {% else %}
-bool {{ ClassName }}::ocp_solve() {
+int {{ ClassName }}::ocp_solve() {
     int status = {{ acados.model.name }}_acados_solve(ocp_capsule_);
     if (status != ACADOS_SUCCESS) {
         RCLCPP_ERROR(this->get_logger(), "Solver failed with status: %d", status);
