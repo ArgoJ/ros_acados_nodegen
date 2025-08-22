@@ -30,6 +30,7 @@ dependencies = [
     "jinja2",
     "pyyaml",
     "pydantic",
+    "typeguard",
 ]
 
 
