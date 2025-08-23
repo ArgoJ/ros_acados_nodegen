@@ -9,4 +9,8 @@ build
 
 *.egg-info
 
-**/my_package
+examples
+!examples/scripts
+!examples/generate_safety_filter_node.py
+!examples/safety_filter_node_config.yaml
+

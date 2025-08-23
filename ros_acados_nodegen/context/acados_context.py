@@ -110,7 +110,7 @@ class AcadosWeightsContext(BaseModel):
     W_0: ValueContext = Field(default=ValueContext(name="W_0", log_label="Initial Weight"))
     W: ValueContext = Field(default=ValueContext(name="W", log_label="Stage Weight"))
     W_e: ValueContext = Field(default=ValueContext(name="W_e", log_label="Terminal Weight"))
-    
+
     @classmethod
     def values_only(cls, **kwargs) -> 'AcadosWeightsContext':
         processed_data = {}
@@ -119,6 +119,31 @@ class AcadosWeightsContext(BaseModel):
                 default_field: ValueContext = cls.model_fields[field_name].default
                 processed_data[field_name] = default_field.model_copy(update={'value': field_value})
                 
+        return cls.model_validate(processed_data)
+    
+    
+class AcadosSlackContext(BaseModel):
+    Zl: ValueContext = Field(default=ValueContext(name="Zl", log_label="Lower Slack Hessian Stage"))
+    Zl_0: ValueContext = Field(default=ValueContext(name="Zl_0", log_label="Lower Slack Hessian Initial"))
+    Zl_e: ValueContext = Field(default=ValueContext(name="Zl_e", log_label="Lower Slack Hessian Terminal"))
+    Zu: ValueContext = Field(default=ValueContext(name="Zu", log_label="Upper Slack Hessian Stage"))
+    Zu_0: ValueContext = Field(default=ValueContext(name="Zu_0", log_label="Upper Slack Hessian Initial"))
+    Zu_e: ValueContext = Field(default=ValueContext(name="Zu_e", log_label="Upper Slack Hessian Terminal"))
+
+    zl: ValueContext = Field(default=ValueContext(name="zl", log_label="Lower Slack Gradient Stage"))
+    zl_0: ValueContext = Field(default=ValueContext(name="zl_0", log_label="Lower Slack Gradient Initial"))
+    zl_e: ValueContext = Field(default=ValueContext(name="zl_e", log_label="Lower Slack Gradient Terminal"))
+    zu: ValueContext = Field(default=ValueContext(name="zu", log_label="Upper Slack Gradient Stage"))
+    zu_0: ValueContext = Field(default=ValueContext(name="zu_0", log_label="Upper Slack Gradient Initial"))
+    zu_e: ValueContext = Field(default=ValueContext(name="zu_e", log_label="Upper Slack Gradient Terminal"))
+
+    @classmethod
+    def values_only(cls, **kwargs) -> 'AcadosSlackContext':
+        processed_data = {}
+        for field_name, field_value in kwargs.items():
+            if field_name in cls.model_fields and isinstance(field_value, list):
+                default_field: ValueContext = cls.model_fields[field_name].default
+                processed_data[field_name] = default_field.model_copy(update={'value': field_value})
         return cls.model_validate(processed_data)
     
 
@@ -143,6 +168,7 @@ class AcadosContext(BaseModel):
     solver: AcadosSolverOptionsContext = Field(default=AcadosSolverOptionsContext)
     constraints: AcadosConstraintsContext = Field(default=AcadosConstraintsContext)
     weights: AcadosWeightsContext = Field(default=AcadosWeightsContext)
+    slack: AcadosSlackContext = Field(default=AcadosSlackContext)
     references: AcadosReferencesContext = Field(default=AcadosReferencesContext)
     parameter_values: ValueContext = Field(default=ValueContext(name="parameter_values", log_label="Parameter Values"))
     x0: ValueContext = Field(default=ValueContext(name="x0", log_label="Initial State"))
@@ -179,7 +205,22 @@ class AcadosContext(BaseModel):
         processed_weights = {
             "W_0": get_diagonal(cost_options.get("W_0", [])),
             "W": get_diagonal(cost_options.get("W", [])),
-            "W_e": get_diagonal(cost_options.get("W_e", []))
+            "W_e": get_diagonal(cost_options.get("W_e", [])),
+        }
+        
+        processed_slacks = {
+            "Zl": get_diagonal(cost_options.get("Zl", [])),
+            "Zl_0": get_diagonal(cost_options.get("Zl_0", [])),
+            "Zl_e": get_diagonal(cost_options.get("Zl_e", [])),
+            "Zu": get_diagonal(cost_options.get("Zu", [])),
+            "Zu_0": get_diagonal(cost_options.get("Zu_0", [])),
+            "Zu_e": get_diagonal(cost_options.get("Zu_e", [])),
+            "zl": cost_options.get("zl", []),
+            "zl_0": cost_options.get("zl_0", []),
+            "zl_e": cost_options.get("zl_e", []),
+            "zu": cost_options.get("zu", []),
+            "zu_0": cost_options.get("zu_0", []),
+            "zu_e": cost_options.get("zu_e", []),
         }
 
         return cls(
@@ -187,6 +228,7 @@ class AcadosContext(BaseModel):
             solver=AcadosSolverOptionsContext(**solver_options), 
             constraints=AcadosConstraintsContext.values_only(**constraints_options), 
             weights=AcadosWeightsContext.values_only(**processed_weights), 
+            slack=AcadosSlackContext.values_only(**processed_slacks), 
             references=AcadosReferencesContext.values_only(**cost_options), 
             parameter_values=ValueContext(value=data.get("parameter_values", [])),
             x0=ValueContext(value=constraints_options.get("lbx_0", [])),
