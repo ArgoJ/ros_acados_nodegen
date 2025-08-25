@@ -3,21 +3,7 @@
 namespace {{ package.name }}
 {
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
-{% set has_slack = namespace(v=False) %}
-{% for _, p in acados.slacks.items() %}
-    {% if p.value %}
-        {% set has_slack.v = True %}
-    {% endif %}
-{% endfor %}
-{% set has_init = namespace(v=False) %}
-{% set has_term = namespace(v=False) %}
-{% for _, p in acados.constraints.items() %}
-    {% if p.value and p.name.endswith('_0') %}
-        {% set has_init.v = True %}
-    {% elif p.value and p.name.endswith('_e') %}
-        {% set has_term.v = True %}
-    {% endif %}
-{% endfor %}
+{% set has_slacks = acados.slacks.has_init or acados.slacks.has_term or acados.slacks.has_stage %}
 {{ ClassName }}::{{ ClassName }}()
     : Node("{{ ros.node_name }}")
 {
@@ -110,7 +96,7 @@ void {{ ClassName }}::initialize_solver() {
 
     this->set_cost_weights();
     this->set_constraints();
-    {% if has_slack.v %}
+    {% if has_slacks %}
     void set_slack_weights();
     {% endif %}
 
@@ -241,6 +227,18 @@ void {{ ClassName }}::setup_parameter_handlers() {
         };
     {% endif %}
     {% endfor %}
+    {% if has_slacks %}
+
+    // Slacks
+    {% for field, param in acados.slacks.items() %}
+    {% if param.value %}
+    parameter_handlers_["{{ package.name }}.slacks.{{ param.name }}"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            update_param_array(p, this->config_.slacks.{{ param.name }}, res);
+        };
+    {% endif %}
+    {% endfor %}
+    {% endif %}
 
     // Solver Options
     parameter_handlers_["{{ package.name }}.solver.Tsim"] =
@@ -381,7 +379,7 @@ rcl_interfaces::msg::SetParametersResult {{ ClassName }}::on_parameter_update(
     if (result.successful){
         this->set_constraints();
         this->set_cost_weights();
-        {% if has_slack.v %}
+        {% if has_slacks %}
         void set_slack_weights();
         {% endif %}
         this->log_parameters();
@@ -517,7 +515,7 @@ void {{ ClassName }}::set_cost_weights() {
     return;
 }
 
-{% if has_slack.v %}
+{% if has_slacks %}
 void {{ ClassName }}::set_slack_weights() {
     {% if acados.slacks.Zl_0.value %}
     auto Zl_0 = diag_from_vec(config_.slacks.Zl_0);
@@ -578,15 +576,16 @@ void {{ ClassName }}::set_slack_weights() {
 {% endif %}
 
 void {{ ClassName }}::set_constraints() {
-    {% if has_init.v %}
+    {% if acados.constraints.has_init %}
     // Initial Constraints
     {% for field, param in acados.constraints.items() %}
     {% if param.value and param.name.endswith('_0') %}
     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, 0, "{{ param.name }}", config_.constraints.{{ param.name }}.data());
     {% endif %}
     {% endfor %}
-
     {% endif %}
+    {% if acados.constraints.has_stage %}
+
     // Stage Constraints
     for (int i=1; i < {{ acados.model.name | upper }}_N; i++) {
         {% for field, param in acados.constraints.items() %}
@@ -595,7 +594,8 @@ void {{ ClassName }}::set_constraints() {
         {% endif %}
         {% endfor %}
     }
-    {% if has_term.v %}
+    {% endif %}
+    {% if acados.constraints.has_term %}
 
     // Terminal Constraints
     {% for field, param in acados.constraints.items() %}

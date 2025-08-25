@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,43 @@ class ValueContext(BaseModel):
     name: str = "acados_name"
     log_label: str = "This Value"
     value: list[float] = Field(default=list)
+    
+    @property
+    def non_empty(self) -> bool:
+        return bool(self.value)
+    
+class _BaseFlagged(BaseModel):
+    has_init: bool = False
+    has_stage: bool = False
+    has_term: bool = False
+
+    _exclude_flag_names = {"has_init", "has_stage", "has_term"}
+
+    @staticmethod
+    def _is_init(name: str) -> bool:
+        return name.endswith("_0")
+
+    @staticmethod
+    def _is_term(name: str) -> bool:
+        return name.endswith("_e")
+
+    @model_validator(mode="after")
+    def _compute_flags(self):
+        cls = type(self)
+        init_fields, term_fields, stage_fields = [], [], []
+        for fname in cls.model_fields:
+            if fname in self._exclude_flag_names:
+                continue
+            if cls._is_init(fname):
+                init_fields.append(fname)
+            elif cls._is_term(fname):
+                term_fields.append(fname)
+            else:
+                stage_fields.append(fname)
+        self.has_init = any(getattr(self, f).non_empty for f in init_fields)
+        self.has_term = any(getattr(self, f).non_empty for f in term_fields)
+        self.has_stage = any(getattr(self, f).non_empty for f in stage_fields)
+        return self
 
 class AcadosModelContext(BaseModel):
     name: str = "my_model"
@@ -31,7 +68,7 @@ class AcadosSolverOptionsContext(BaseModel):
     warmstart: bool = False
     Tsim: float = 0.1
 
-class AcadosConstraintsContext(BaseModel):
+class AcadosConstraintsContext(_BaseFlagged):
     # States Bounds
     lbx: ValueContext = Field(default=ValueContext(name="lbx", log_label="Lower Bound X"))
     ubx: ValueContext = Field(default=ValueContext(name="ubx", log_label="Upper Bound X"))
@@ -107,7 +144,7 @@ class AcadosConstraintsContext(BaseModel):
         return cls.model_validate(processed_data)
 
 
-class AcadosWeightsContext(BaseModel):
+class AcadosWeightsContext(_BaseFlagged):
     W_0: ValueContext = Field(default=ValueContext(name="W_0", log_label="Initial Weight"))
     W: ValueContext = Field(default=ValueContext(name="W", log_label="Stage Weight"))
     W_e: ValueContext = Field(default=ValueContext(name="W_e", log_label="Terminal Weight"))
@@ -123,7 +160,7 @@ class AcadosWeightsContext(BaseModel):
         return cls.model_validate(processed_data)
     
     
-class AcadosSlackContext(BaseModel):
+class AcadosSlackContext(_BaseFlagged):
     Zl: ValueContext = Field(default=ValueContext(name="Zl", log_label="Lower Slack Hessian Stage"))
     Zl_0: ValueContext = Field(default=ValueContext(name="Zl_0", log_label="Lower Slack Hessian Initial"))
     Zl_e: ValueContext = Field(default=ValueContext(name="Zl_e", log_label="Lower Slack Hessian Terminal"))
@@ -148,7 +185,7 @@ class AcadosSlackContext(BaseModel):
         return cls.model_validate(processed_data)
     
 
-class AcadosReferencesContext(BaseModel):
+class AcadosReferencesContext(_BaseFlagged):
     yref_0: ValueContext = Field(default=ValueContext(name="yref_0", log_label="Initial Reference"))
     yref: ValueContext = Field(default=ValueContext(name="yref", log_label="Stage Reference"))
     yref_e: ValueContext = Field(default=ValueContext(name="yref_e", log_label="Terminal Reference"))

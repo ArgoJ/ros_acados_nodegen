@@ -44,21 +44,7 @@ namespace {{ package.name }}
 {
 
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
-{% set has_slack = namespace(v=False) %}
-{% for _, p in acados.slacks.items() %}
-    {% if p.value %}
-        {% set has_slack.v = True %}
-    {% endif %}
-{% endfor %}
-{% set has_init = namespace(v=False) %}
-{% set has_term = namespace(v=False) %}
-{% for _, p in acados.constraints.items() %}
-    {% if p.value and p.name.endswith('_0') %}
-        {% set has_init.v = True %}
-    {% elif p.value and p.name.endswith('_e') %}
-        {% set has_term.v = True %}
-    {% endif %}
-{% endfor %}
+{% set has_slack = acados.slacks.has_init or acados.slacks.has_term or acados.slacks.has_stage %}
 class {{ ClassName }} : public rclcpp::Node {
 private:
     // --- ROS Subscriptions ---
@@ -157,7 +143,7 @@ private:
     void get_state(double* x, int stage);
     
     void set_cost_weights();
-    {% if has_slack.v %}
+    {% if has_slack %}
     void set_slack_weights();
     {% endif %}
     void set_constraints();
