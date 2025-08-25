@@ -29,6 +29,7 @@ class AcadosSolverOptionsContext(BaseModel):
     nlp_solver_type: str = "SQP_RTI"
     warmstart_first: bool = True
     warmstart: bool = False
+    Tsim: float = 0.1
 
 class AcadosConstraintsContext(BaseModel):
     # States Bounds
@@ -168,7 +169,7 @@ class AcadosContext(BaseModel):
     solver: AcadosSolverOptionsContext = Field(default=AcadosSolverOptionsContext)
     constraints: AcadosConstraintsContext = Field(default=AcadosConstraintsContext)
     weights: AcadosWeightsContext = Field(default=AcadosWeightsContext)
-    slack: AcadosSlackContext = Field(default=AcadosSlackContext)
+    slacks: AcadosSlackContext = Field(default=AcadosSlackContext)
     references: AcadosReferencesContext = Field(default=AcadosReferencesContext)
     parameter_values: ValueContext = Field(default=ValueContext(name="parameter_values", log_label="Parameter Values"))
     x0: ValueContext = Field(default=ValueContext(name="x0", log_label="Initial State"))
@@ -228,7 +229,7 @@ class AcadosContext(BaseModel):
             solver=AcadosSolverOptionsContext(**solver_options), 
             constraints=AcadosConstraintsContext.values_only(**constraints_options), 
             weights=AcadosWeightsContext.values_only(**processed_weights), 
-            slack=AcadosSlackContext.values_only(**processed_slacks), 
+            slacks=AcadosSlackContext.values_only(**processed_slacks), 
             references=AcadosReferencesContext.values_only(**cost_options), 
             parameter_values=ValueContext(value=data.get("parameter_values", [])),
             x0=ValueContext(value=constraints_options.get("lbx_0", [])),

@@ -45,7 +45,7 @@ namespace {{ package.name }}
 
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
 {% set has_slack = namespace(v=False) %}
-{% for _, p in acados.slack.items() %}
+{% for _, p in acados.slacks.items() %}
     {% if p.value %}
         {% set has_slack.v = True %}
     {% endif %}
@@ -147,10 +147,10 @@ private:
 
     // --- Acados Helpers ---
     {% if acados.solver.nlp_solver_type == "SQP_RTI" %}
-    bool prepare_rti_solve();
-    bool feedback_rti_solve();
+    int prepare_rti_solve();
+    int feedback_rti_solve();
     {% else %}
-    bool ocp_solve();
+    int ocp_solve();
     {% endif %}
 
     void get_input(double* u, int stage);

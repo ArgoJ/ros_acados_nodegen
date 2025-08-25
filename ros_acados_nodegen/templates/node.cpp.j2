@@ -4,7 +4,7 @@ namespace {{ package.name }}
 {
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
 {% set has_slack = namespace(v=False) %}
-{% for _, p in acados.slack.items() %}
+{% for _, p in acados.slacks.items() %}
     {% if p.value %}
         {% set has_slack.v = True %}
     {% endif %}
@@ -75,7 +75,7 @@ namespace {{ package.name }}
 
     // --- Init solver ---
     this->initialize_solver();
-    this->start_control_timer(50.0);
+    this->start_control_timer({{ acados.solver.Tsim }});
 }
 
 {{ ClassName }}::~{{ ClassName }}() {
@@ -242,6 +242,18 @@ void {{ ClassName }}::setup_parameter_handlers() {
     {% endif %}
     {% endfor %}
 
+    // Solver Options
+    parameter_handlers_["{{ package.name }}.solver.Tsim"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            this->config_.solver_options.Tsim = p.as_double();
+            try {
+                this->start_control_timer(this->config_.solver_options.Tsim);
+            } catch (const std::exception& e) {
+                res.reason = "Failed to start control timer, while setting parameter '" + p.get_name() + "': " + e.what();
+                res.successful = false;
+            }
+        };
+
     // Other Parameters
     {% for param in ros.parameters %}
     parameter_handlers_["{{ param.name }}"] =
@@ -279,6 +291,9 @@ void {{ ClassName }}::declare_parameters() {
         {% endif %}
     {% endfor %}
 
+    // Solver Options
+    this->declare_parameter("{{ package.name }}.solver.Tsim", {{ acados.solver.Tsim }});
+
     // Other Parameters
     {% for param in ros.parameters %}
         {% if param.type == "string" %}
@@ -303,6 +318,9 @@ void {{ ClassName }}::load_parameters() {
     get_and_check_array_param(this, "{{ package.name }}.weights.{{ param.name }}", config_.weights.{{ param.name }});
     {% endif %}
     {% endfor %}
+
+    // Solver Options
+    this->get_parameter("{{ package.name }}.solver.Tsim", config_.solver_options.Tsim);
 
     // Other Parameters
     {% for param in ros.parameters %}
@@ -330,6 +348,9 @@ void {{ ClassName }}::log_parameters() {
     {% endif %}
     {% endfor %}
     
+    // Solver Options
+    ss << "\n" << std::left << std::setw(label_width) << "Tsim" << " = " << config_.solver_options.Tsim;
+
     // Other Parameters
     {% for param in ros.parameters %}
     ss << "\n" << std::left << std::setw(label_width) << "{{ param.name | replace('_', ' ') | title }}" << " = " << config_.{{ param.name | snake }};
@@ -498,58 +519,58 @@ void {{ ClassName }}::set_cost_weights() {
 
 {% if has_slack.v %}
 void {{ ClassName }}::set_slack_weights() {
-    {% if acados.slack.Zl_0.value %}
-    auto Zl_0 = diag_from_vec(config_.slack.Zl_0);
+    {% if acados.slacks.Zl_0.value %}
+    auto Zl_0 = diag_from_vec(config_.slacks.Zl_0);
     ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zl", Zl_0.data());
     {% endif %}
-    {% if acados.slack.Zu_0.value %}
-    auto Zu_0 = diag_from_vec(config_.slack.Zu_0);
+    {% if acados.slacks.Zu_0.value %}
+    auto Zu_0 = diag_from_vec(config_.slacks.Zu_0);
     ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zu", Zu_0.data());
     {% endif %}
-    {% if acados.slack.zl_0.value %}
-    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slack.zl_0.data());
+    {% if acados.slacks.zl_0.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slacks.zl_0.data());
     {% endif %}
-    {% if acados.slack.zu_0.value %}
-    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slack.zu_0.data());
+    {% if acados.slacks.zu_0.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slacks.zu_0.data());
     {% endif %}
-    {% if acados.slack.Zl.value or acados.slack.Zu.value or acados.slack.zl.value or acados.slack.zu.value %}
+    {% if acados.slacks.Zl.value or acados.slacks.Zu.value or acados.slacks.zl.value or acados.slacks.zu.value %}
 
-    {% if acados.slack.Zl.value %}
-    auto Zl = diag_from_vec(config_.slack.Zl);
+    {% if acados.slacks.Zl.value %}
+    auto Zl = diag_from_vec(config_.slacks.Zl);
     {% endif %}
-    {% if acados.slack.Zu.value %}
-    auto Zu = diag_from_vec(config_.slack.Zu);
+    {% if acados.slacks.Zu.value %}
+    auto Zu = diag_from_vec(config_.slacks.Zu);
     {% endif %}
     for (int i = 1; i < {{ acados.model.name | upper }}_N; i++) {
-        {% if acados.slack.Zl.value %}
+        {% if acados.slacks.Zl.value %}
         ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "Zl", Zl.data());
         {% endif %}
-        {% if acados.slack.Zu.value %}
+        {% if acados.slacks.Zu.value %}
         ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "Zu", Zu.data());
         {% endif %}
-        {% if acados.slack.zl.value %}
-        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zl", config_.slack.zl.data());
+        {% if acados.slacks.zl.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zl", config_.slacks.zl.data());
         {% endif %}
-        {% if acados.slack.zu.value %}
-        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zu", config_.slack.zu.data());
+        {% if acados.slacks.zu.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zu", config_.slacks.zu.data());
         {% endif %}
     }
     {% endif %}
-    {% if acados.slack.Zl_e.value or acados.slack.Zu_e.value or acados.slack.zl_e.value or acados.slack.zu_e.value %}
+    {% if acados.slacks.Zl_e.value or acados.slacks.Zu_e.value or acados.slacks.zl_e.value or acados.slacks.zu_e.value %}
 
-    {% if acados.slack.Zl_e.value %}
-    auto Zl_e = diag_from_vec(config_.slack.Zl_e);
+    {% if acados.slacks.Zl_e.value %}
+    auto Zl_e = diag_from_vec(config_.slacks.Zl_e);
     ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zl", Zl_e.data());
     {% endif %}
-    {% if acados.slack.Zu_e.value %}
-    auto Zu_e = diag_from_vec(config_.slack.Zu_e);
+    {% if acados.slacks.Zu_e.value %}
+    auto Zu_e = diag_from_vec(config_.slacks.Zu_e);
     ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zu", Zu_e.data());
     {% endif %}
-    {% if acados.slack.zl_e.value %}
-    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slack.zl_e.data());
+    {% if acados.slacks.zl_e.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slacks.zl_e.data());
     {% endif %}
-    {% if acados.slack.zu_e.value %}
-    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slack.zu_e.data());
+    {% if acados.slacks.zu_e.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slacks.zu_e.data());
     {% endif %}
     {% endif %}
     return;

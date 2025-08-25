@@ -3,12 +3,20 @@
 
 #include <array>
 #include <vector>
+#include <string>
 #include "acados_solver_{{ acados.model.name }}.h"
 
 
 namespace {{ package.name }}
 {
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
+
+struct {{ ClassName }}SolverOptions {
+    std::string nlp_solver_type = "{{ acados.solver.nlp_solver_type }}";
+    bool warmstart_first = {{ acados.solver.warmstart_first | lower }};
+    bool warmstart = {{ acados.solver.warmstart | lower }};
+    double Tsim = {{ acados.solver.Tsim }};
+};
 
 struct {{ ClassName }}Constraints {
     {% if acados.constraints.lbx.value or acados.constraints.lbx_e.value %}
@@ -148,9 +156,50 @@ struct {{ ClassName }}Weights {
     {% endif %}
 };
 
+struct {{ ClassName }}Slacks {
+    {% if acados.slacks.Zl.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> Zl = {};
+    {% endif %}
+    {% if acados.slacks.Zl_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> Zl_0 = {};
+    {% endif %}
+    {% if acados.slacks.Zl_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> Zl_e = {};
+    {% endif %}
+    {% if acados.slacks.Zu.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> Zu = {};
+    {% endif %}
+    {% if acados.slacks.Zu_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> Zu_0 = {};
+    {% endif %}
+    {% if acados.slacks.Zu_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> Zu_e = {};
+    {% endif %}
+    {% if acados.slacks.zl.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> zl = {};
+    {% endif %}
+    {% if acados.slacks.zl_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> zl_0 = {};
+    {% endif %}
+    {% if acados.slacks.zl_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> zl_e = {};
+    {% endif %}
+    {% if acados.slacks.zu.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY0> zu = {};
+    {% endif %}
+    {% if acados.slacks.zu_0.value %}
+    std::array<double, {{ acados.model.name | upper }}_NY> zu_0 = {};
+    {% endif %}
+    {% if acados.slacks.zu_e.value %}
+    std::array<double, {{ acados.model.name | upper }}_NYN> zu_e = {};
+    {% endif %}
+};
+
 struct {{ ClassName }}Config {
+    {{ ClassName }}SolverOptions solver_options = {{ ClassName }}SolverOptions();
     {{ ClassName }}Constraints constraints = {{ ClassName }}Constraints();
     {{ ClassName }}Weights weights = {{ ClassName }}Weights();
+    {{ ClassName }}Slacks slacks = {{ ClassName }}Slacks();
     std::array<double, {{ acados.model.name | upper }}_NP> parameter_values = {};
     {% for param in ros.parameters %}
     {% if param.type == "array<double>" %}
