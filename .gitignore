@@ -9,4 +9,4 @@ build
 
 *.egg-info
 
-**/my_package
+examples/nodegen_code

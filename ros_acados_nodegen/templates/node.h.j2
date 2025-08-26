@@ -44,6 +44,7 @@ namespace {{ package.name }}
 {
 
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
+{% set has_slack = acados.slacks.has_init or acados.slacks.has_term or acados.slacks.has_stage %}
 class {{ ClassName }} : public rclcpp::Node {
 private:
     // --- ROS Subscriptions ---
@@ -132,17 +133,20 @@ private:
 
     // --- Acados Helpers ---
     {% if acados.solver.nlp_solver_type == "SQP_RTI" %}
-    bool prepare_rti_solve();
-    bool feedback_rti_solve();
+    int prepare_rti_solve();
+    int feedback_rti_solve();
     {% else %}
-    bool ocp_solve();
+    int ocp_solve();
     {% endif %}
 
     void get_input(double* u, int stage);
     void get_state(double* x, int stage);
     
-    void set_solver_weights();
-    void set_solver_constraints();
+    void set_cost_weights();
+    {% if has_slack %}
+    void set_slack_weights();
+    {% endif %}
+    void set_constraints();
     void set_x0(double* x0);
     void set_yref0(double* yref0);
     void set_yref(double* yref, int stage);

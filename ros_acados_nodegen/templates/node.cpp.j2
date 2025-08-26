@@ -3,6 +3,7 @@
 namespace {{ package.name }}
 {
 {% set ClassName = ros.node_name | replace('_', ' ') | title | replace(' ', '') %}
+{% set has_slacks = acados.slacks.has_init or acados.slacks.has_term or acados.slacks.has_stage %}
 {{ ClassName }}::{{ ClassName }}()
     : Node("{{ ros.node_name }}")
 {
@@ -60,7 +61,7 @@ namespace {{ package.name }}
 
     // --- Init solver ---
     this->initialize_solver();
-    this->start_control_timer(50.0);
+    this->start_control_timer({{ acados.solver.Tsim }});
 }
 
 {{ ClassName }}::~{{ ClassName }}() {
@@ -93,8 +94,11 @@ void {{ ClassName }}::initialize_solver() {
     ocp_nlp_out_ = {{ acados.model.name }}_acados_get_nlp_out(ocp_capsule_);
     ocp_nlp_opts_ = {{ acados.model.name }}_acados_get_nlp_opts(ocp_capsule_);
 
-    this->set_solver_weights();
-    this->set_solver_constraints();
+    this->set_cost_weights();
+    this->set_constraints();
+    {% if has_slacks %}
+    void set_slack_weights();
+    {% endif %}
 
     RCLCPP_INFO(this->get_logger(), "Acados solver initialized successfully.");
 }
@@ -223,6 +227,30 @@ void {{ ClassName }}::setup_parameter_handlers() {
         };
     {% endif %}
     {% endfor %}
+    {% if has_slacks %}
+
+    // Slacks
+    {% for field, param in acados.slacks.items() %}
+    {% if param.value %}
+    parameter_handlers_["{{ package.name }}.slacks.{{ param.name }}"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            update_param_array(p, this->config_.slacks.{{ param.name }}, res);
+        };
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+
+    // Solver Options
+    parameter_handlers_["{{ package.name }}.solver.Tsim"] =
+        [this](const rclcpp::Parameter& p, rcl_interfaces::msg::SetParametersResult& res) {
+            this->config_.solver_options.Tsim = p.as_double();
+            try {
+                this->start_control_timer(this->config_.solver_options.Tsim);
+            } catch (const std::exception& e) {
+                res.reason = "Failed to start control timer, while setting parameter '" + p.get_name() + "': " + e.what();
+                res.successful = false;
+            }
+        };
 
     // Other Parameters
     {% for param in ros.parameters %}
@@ -261,6 +289,9 @@ void {{ ClassName }}::declare_parameters() {
         {% endif %}
     {% endfor %}
 
+    // Solver Options
+    this->declare_parameter("{{ package.name }}.solver.Tsim", {{ acados.solver.Tsim }});
+
     // Other Parameters
     {% for param in ros.parameters %}
         {% if param.type == "string" %}
@@ -285,6 +316,9 @@ void {{ ClassName }}::load_parameters() {
     get_and_check_array_param(this, "{{ package.name }}.weights.{{ param.name }}", config_.weights.{{ param.name }});
     {% endif %}
     {% endfor %}
+
+    // Solver Options
+    this->get_parameter("{{ package.name }}.solver.Tsim", config_.solver_options.Tsim);
 
     // Other Parameters
     {% for param in ros.parameters %}
@@ -312,6 +346,9 @@ void {{ ClassName }}::log_parameters() {
     {% endif %}
     {% endfor %}
     
+    // Solver Options
+    ss << "\n" << std::left << std::setw(label_width) << "Tsim" << " = " << config_.solver_options.Tsim;
+
     // Other Parameters
     {% for param in ros.parameters %}
     ss << "\n" << std::left << std::setw(label_width) << "{{ param.name | replace('_', ' ') | title }}" << " = " << config_.{{ param.name | snake }};
@@ -340,8 +377,11 @@ rcl_interfaces::msg::SetParametersResult {{ ClassName }}::on_parameter_update(
     }
 
     if (result.successful){
-        this->set_solver_constraints();
-        this->set_solver_weights();
+        this->set_constraints();
+        this->set_cost_weights();
+        {% if has_slacks %}
+        void set_slack_weights();
+        {% endif %}
         this->log_parameters();
     }
     return result;
@@ -455,7 +495,7 @@ void {{ ClassName }}::set_ocp_parameters(double* p, size_t np) {
 }
 {% endif %}
 
-void {{ ClassName }}::set_solver_weights() {
+void {{ ClassName }}::set_cost_weights() {
     {% if acados.weights.W_0.value %}
     auto W_0 = diag_from_vec(config_.weights.W_0);
     ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "W", W_0.data());
@@ -475,25 +515,77 @@ void {{ ClassName }}::set_solver_weights() {
     return;
 }
 
-void {{ ClassName }}::set_solver_constraints() {
-    {% set has_init = namespace(v=False) %}
-    {% set has_term = namespace(v=False) %}
-    {% for _, p in acados.constraints.items() %}
-        {% if p.value and p.name.endswith('_0') %}
-            {% set has_init.v = True %}
-        {% elif p.value and p.name.endswith('_e') %}
-            {% set has_term.v = True %}
+{% if has_slacks %}
+void {{ ClassName }}::set_slack_weights() {
+    {% if acados.slacks.Zl_0.value %}
+    auto Zl_0 = diag_from_vec(config_.slacks.Zl_0);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zl", Zl_0.data());
+    {% endif %}
+    {% if acados.slacks.Zu_0.value %}
+    auto Zu_0 = diag_from_vec(config_.slacks.Zu_0);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zu", Zu_0.data());
+    {% endif %}
+    {% if acados.slacks.zl_0.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slacks.zl_0.data());
+    {% endif %}
+    {% if acados.slacks.zu_0.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slacks.zu_0.data());
+    {% endif %}
+    {% if acados.slacks.Zl.value or acados.slacks.Zu.value or acados.slacks.zl.value or acados.slacks.zu.value %}
+
+    {% if acados.slacks.Zl.value %}
+    auto Zl = diag_from_vec(config_.slacks.Zl);
+    {% endif %}
+    {% if acados.slacks.Zu.value %}
+    auto Zu = diag_from_vec(config_.slacks.Zu);
+    {% endif %}
+    for (int i = 1; i < {{ acados.model.name | upper }}_N; i++) {
+        {% if acados.slacks.Zl.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "Zl", Zl.data());
         {% endif %}
-    {% endfor %}
-    {% if has_init.v %}
+        {% if acados.slacks.Zu.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "Zu", Zu.data());
+        {% endif %}
+        {% if acados.slacks.zl.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zl", config_.slacks.zl.data());
+        {% endif %}
+        {% if acados.slacks.zu.value %}
+        ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, i, "zu", config_.slacks.zu.data());
+        {% endif %}
+    }
+    {% endif %}
+    {% if acados.slacks.Zl_e.value or acados.slacks.Zu_e.value or acados.slacks.zl_e.value or acados.slacks.zu_e.value %}
+
+    {% if acados.slacks.Zl_e.value %}
+    auto Zl_e = diag_from_vec(config_.slacks.Zl_e);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zl", Zl_e.data());
+    {% endif %}
+    {% if acados.slacks.Zu_e.value %}
+    auto Zu_e = diag_from_vec(config_.slacks.Zu_e);
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "Zu", Zu_e.data());
+    {% endif %}
+    {% if acados.slacks.zl_e.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zl",  config_.slacks.zl_e.data());
+    {% endif %}
+    {% if acados.slacks.zu_e.value %}
+    ocp_nlp_cost_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, 0, "zu", config_.slacks.zu_e.data());
+    {% endif %}
+    {% endif %}
+    return;
+}
+{% endif %}
+
+void {{ ClassName }}::set_constraints() {
+    {% if acados.constraints.has_init %}
     // Initial Constraints
     {% for field, param in acados.constraints.items() %}
     {% if param.value and param.name.endswith('_0') %}
     ocp_nlp_constraints_model_set(ocp_nlp_config_, ocp_nlp_dims_, ocp_nlp_in_, ocp_nlp_out_, 0, "{{ param.name }}", config_.constraints.{{ param.name }}.data());
     {% endif %}
     {% endfor %}
-
     {% endif %}
+    {% if acados.constraints.has_stage %}
+
     // Stage Constraints
     for (int i=1; i < {{ acados.model.name | upper }}_N; i++) {
         {% for field, param in acados.constraints.items() %}
@@ -502,7 +594,8 @@ void {{ ClassName }}::set_solver_constraints() {
         {% endif %}
         {% endfor %}
     }
-    {% if has_term.v %}
+    {% endif %}
+    {% if acados.constraints.has_term %}
 
     // Terminal Constraints
     {% for field, param in acados.constraints.items() %}
