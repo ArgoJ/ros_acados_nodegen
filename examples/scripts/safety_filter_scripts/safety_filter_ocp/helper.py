@@ -66,12 +66,8 @@ def get_relevant_obstacles(
     closest_indices = sorted_indices[:num_obstacles_to_select]
     
     final_obstacles = obstacle_candidates[closest_indices]
-
-    # --- Schritt 4: Aktivierungs-Spalte hinzufügen ---
-    activation_switches = np.ones((final_obstacles.shape[0], 1))
-    obstacles_with_activation = np.hstack((final_obstacles, activation_switches))
     
-    return obstacles_with_activation
+    return final_obstacles
 
 
 def get_stage_ref(initial_state: np.ndarray, target_state: np.ndarray, target_input: np.ndarray): 

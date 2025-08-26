@@ -27,7 +27,7 @@ if __name__ == "__main__":
     default_cgencode = os.path.join(cwd, "c_generated_code")
 
     parser = argparse.ArgumentParser(description='Generate ACADOS solver code.')
-    parser.add_argument('--acados_code_export_path', type=str, default=default_cgencode, help='The path for the generated c code.')
+    parser.add_argument('--gen_code_path', type=str, default=default_cgencode, help='The path for the generated c code.')
     parser.add_argument('-p', '--plot', action='store_true', help='Plot the occupancy map and the input references and resulting inputs.')
     parser.add_argument('--num_occ', type=int, default=10, help='The number of occupied fields used in the MPC.')
     args = parser.parse_args()
@@ -46,8 +46,8 @@ if __name__ == "__main__":
     # --- Solver setup ---
     safety_radius = map_info.resolution * np.sqrt(2) + 0.3
     R_ref, R_delta = setup_weights()
-    ocp_solver = create_solver(N_horizon, dt, args.num_occ, R_ref, R_delta, args.acados_code_export_path)
-    sim_solver = create_sim(dt, args.acados_code_export_path)
+    ocp_solver = create_solver(N_horizon, dt, args.num_occ, safety_radius**2, R_ref, R_delta, args.gen_code_path)
+    sim_solver = create_sim(dt*1.3, args.gen_code_path)
         
     x0 = np.array([0.0, 0.0, np.pi/4, 0.5, 0.0])
     unsafe_inputs, unsafe_path = generate_unsafe_trajectory(dt, x0, map_info)

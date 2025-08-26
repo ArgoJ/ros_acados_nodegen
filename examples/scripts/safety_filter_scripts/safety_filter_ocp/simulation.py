@@ -40,22 +40,30 @@ def simulate(
                 np.zeros(ocp_solver.acados_ocp.dims.nu))))
         
         # set obstacles
-        num_obs = ocp_solver.acados_ocp.dims.nh
+        num_obs = (ocp_solver.acados_ocp.dims.np - 2) // 2 
         relevant_obstacles = get_relevant_obstacles(
             map_info=map_info,
             robot_position=x_current[:2],
             local_patch_size_m=50*map_info.resolution,
             max_obstacles_to_return=num_obs
         )
+        num_active_obstacles = len(relevant_obstacles)
         p_values = np.zeros(ocp_solver.acados_ocp.dims.np)
-        p_values[0] = safety_radius**2 
-        num_obs_to_set = min(len(relevant_obstacles), num_obs)
-        if num_obs_to_set > 0:
-            p_values[1:3 * num_obs_to_set + 1] = relevant_obstacles[:num_obs_to_set].flatten()
+        p_values[:2] = [0.2, 0.2]
+        if num_active_obstacles > 0:
+            obs_flat = relevant_obstacles.flatten()
+            p_values[2:len(obs_flat)+2] = obs_flat
 
-        # 3. Setze den Parameter 'p' für den gesamten Horizont
         for k in range(N_horizon + 1):
             ocp_solver.set(k, "p", p_values)
+
+        # Setze den Safety Radius
+        lh_active = np.full((num_active_obstacles * 2,), safety_radius**2)
+        lh_inactive = np.full((ocp_solver.acados_ocp.dims.nh - num_active_obstacles * 2,), -1e1)
+        lh_values = np.concatenate((lh_active, lh_inactive))
+
+        for k in range(1, N_horizon):
+            ocp_solver.constraints_set(k, "lh", lh_values)
 
         # Solve OCP
         status = ocp_solver.solve()

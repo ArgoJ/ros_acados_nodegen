@@ -7,11 +7,88 @@ from acados_template import AcadosOcp, AcadosOcpSolver, builders, AcadosSim, Aca
 from .skid_steer_model import get_skid_steer_model
 
 
+# def set_nonlinear_param_constraints(ocp: AcadosOcp, max_num_obs: int, r_unsafe_square):
+#     ocp.dims.np = max_num_obs * 2 + 2
+#     ocp.dims.nh = max_num_obs * 2
+
+#     p = ca.MX.sym('p', ocp.dims.np) # [r_unsafe_sqare,x0,y0,switch0,x01,y1,switch1]
+#     ocp.model.p = p
+
+#     px = ocp.model.x[0]
+#     py = ocp.model.x[1]
+#     psi = ocp.model.x[2]
+#     d_front = p[0]
+#     d_rear = p[1]
+
+#     # --- ALGEBRAISCHE VARIABLEN ---
+#     px_front = px + d_front * ca.cos(psi)
+#     py_front = py + d_front * ca.sin(psi)
+    
+#     px_rear = px - d_rear * ca.cos(psi)
+#     py_rear = py - d_rear * ca.sin(psi)
+    
+#     h_list = []
+#     for i in range(max_num_obs):
+#         xi = p[2*i + 2]
+#         yi = p[2*i + 3]
+
+#         d2_front = (px_front - xi)**2 + (py_front - yi)**2
+#         d2_rear  = (px_rear - xi)**2 + (py_rear - yi)**2
+
+#         h_list.append(d2_front)
+#         h_list.append(d2_rear)
+
+#     ocp.model.con_h_expr = ca.vertcat(*h_list)
+#     ocp.constraints.lh = np.full(ocp.dims.nh, r_unsafe_square)
+#     ocp.constraints.uh = np.full(ocp.dims.nh, 1e4)
+
+
+def set_nonlinear_param_constraints(ocp: AcadosOcp, max_num_obs: int, r_unsafe_square):
+    ocp.dims.np = max_num_obs * 2 + 2
+    ocp.dims.nh = max_num_obs * 2
+    
+    ocp.dims.nsh = ocp.dims.nh
+    ocp.constraints.idxsh = np.arange(ocp.dims.nh)
+
+    p = ca.MX.sym('p', ocp.dims.np) 
+    ocp.model.p = p
+
+    px, py, psi = ocp.model.x[0], ocp.model.x[1], ocp.model.x[2]
+    d_front, d_rear = p[0], p[1]
+
+    px_front = px + d_front * ca.cos(psi)
+    py_front = py + d_front * ca.sin(psi)
+    px_rear  = px - d_rear * ca.cos(psi)
+    py_rear  = py - d_rear * ca.sin(psi)
+
+    h_list = []
+    for i in range(max_num_obs):
+        xi, yi = p[2*i + 2], p[2*i + 3]
+        d2_front = (px_front - xi)**2 + (py_front - yi)**2
+        d2_rear  = (px_rear - xi)**2 + (py_rear - yi)**2
+        h_list.append(d2_front)
+        h_list.append(d2_rear)
+
+    ocp.model.con_h_expr = ca.vertcat(*h_list)
+
+    ocp.constraints.lh = np.full(ocp.dims.nh, r_unsafe_square)
+    ocp.constraints.uh = np.full(ocp.dims.nh, 1e4)
+
+    ocp.constraints.lsh = np.zeros(ocp.dims.nsh)
+    ocp.constraints.ush = 1e4 * np.ones(ocp.dims.nsh)
+
+    ocp.cost.zl = 1e3 * np.ones(ocp.dims.nsh)
+    ocp.cost.Zl = 1e3 * np.ones(ocp.dims.nsh)
+    ocp.cost.zu = 1e3 * np.ones(ocp.dims.nsh)
+    ocp.cost.Zu = 1e3 * np.ones(ocp.dims.nsh)
+
+
 
 def create_solver(
         N_horizon: int,
         dt: float, 
         max_num_obs: int, 
+        r_unsafe_square: float, 
         R_ref: np.ndarray = None,
         R_delta: np.ndarray = None,
         gen_code_path: str = ""
@@ -26,7 +103,7 @@ def create_solver(
     ocp.dims.nx = ocp.model.x.size1()
     ocp.dims.nu = ocp.model.u.size1()
 
-    # Gewichtungsmatrizen
+    # --- Cost ---
     v_scale = 1e1
     omega_scale = 1e-1
 
@@ -35,17 +112,37 @@ def create_solver(
     if R_delta is None:
         R_delta = np.diag([1. * v_scale, 3. * omega_scale])
 
-    u_delta = ocp.model.u - ocp.model.x[3:5]
+    nx = ocp.dims.nx
+    nu = ocp.dims.nu
 
-    ocp.cost.cost_type_0 = "NONLINEAR_LS"
+    # Initial Cost
+    ocp.cost.cost_type_0 = "LINEAR_LS"
+    ocp.dims.ny_0 = 2 * nu
+    Vx_0 = np.zeros((ocp.dims.ny_0, nx))
+    Vx_0[nu:2*nu, 3:5] = -np.eye(nu)
+    ocp.cost.Vx_0 = Vx_0
+
+    Vu_0 = np.zeros((ocp.dims.ny_0, nu))
+    Vu_0[0:nu, :] = np.eye(nu)
+    Vu_0[nu:2*nu, :] = np.eye(nu)
+    ocp.cost.Vu_0 = Vu_0
+    
     ocp.cost.W_0 = spl.block_diag(R_ref, R_delta)
-    ocp.model.cost_y_expr_0 = ca.vertcat(ocp.model.u, u_delta)
-    ocp.cost.yref_0 = np.zeros(ocp.dims.nu * 2)
+    ocp.cost.yref_0 = np.zeros(ocp.dims.ny_0)
 
-    ocp.cost.cost_type = "NONLINEAR_LS"
+    # Stage Cost
+    ocp.cost.cost_type = "LINEAR_LS"
+    ocp.dims.ny = nu
+    Vx = np.zeros((ocp.dims.ny, nx))
+    Vx[:, 3:5] = -np.eye(nu)
+    ocp.cost.Vx = Vx
+
+    Vu = np.zeros((ocp.dims.ny, nu))
+    Vu[:, :] = np.eye(nu)
+    ocp.cost.Vu = Vu
+
     ocp.cost.W = R_delta
-    ocp.model.cost_y_expr = u_delta
-    ocp.cost.yref = np.zeros(ocp.dims.nu)
+    ocp.cost.yref = np.zeros(ocp.dims.ny)
 
     # --- Constraints ---
     # Box-Constraints für Steuerungen
@@ -60,23 +157,7 @@ def create_solver(
     ocp.constraints.ubx = np.array([v_max, omega_max])
     ocp.constraints.idxbx = np.array([3, 4])
 
-    # Nichtlineare Beschränkungen für Hindernisse
-    ocp.dims.np = max_num_obs*3 + 1
-    ocp.dims.nh = max_num_obs
-
-    p = ca.MX.sym('p', ocp.dims.np) # [r_unsafe_sqare,x0,y0,switch0,x01,y1,switch1]
-    ocp.model.p = p
-    robot_pos = ocp.model.x[:2] # [x, y]
-    
-    eps = 1e-6
-    ocp.model.con_h_expr = ca.vertcat(*[
-        p[3*i+3] * ((robot_pos[0] - p[3*i+1])**2 + (robot_pos[1] - p[3*i+2])**2 - p[0] + eps)
-        for i in range(max_num_obs)
-    ])
-
-    # Untere Schranke (Sicherheitsabstand), obere Schranke unendlich
-    ocp.constraints.lh = np.zeros(max_num_obs)
-    ocp.constraints.uh = np.full(max_num_obs, 1e4)
+    set_nonlinear_param_constraints(ocp, max_num_obs, r_unsafe_square)
 
     # --- Parameter ---
     # Anfangszustand
@@ -87,9 +168,9 @@ def create_solver(
     ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
     ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
     ocp.solver_options.integrator_type = 'ERK'
-    ocp.solver_options.nlp_solver_type = 'SQP_RTI' # Real-Time Iteration
-    ocp.solver_options.nlp_solver_tol_ineq = 1e-4
-    ocp.solver_options.nlp_solver_max_iter = 5
+    ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+    # ocp.solver_options.nlp_solver_tol_ineq = 1e-4
+    # ocp.solver_options.nlp_solver_max_iter = 5
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = dt * N_horizon
 
@@ -119,9 +200,6 @@ def create_sim(
     sim.solver_options.integrator_type = 'ERK'
     sim.solver_options.num_stages = 4
     sim.solver_options.num_steps = 1
-    
-    if gen_code_path:
-        sim.code_export_directory = gen_code_path
 
     json_file = os.path.join(os.path.dirname(__file__) if not gen_code_path else gen_code_path, 'skid_steer_sim.json')
     if os.path.exists(json_file):
