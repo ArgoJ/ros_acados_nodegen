@@ -6,8 +6,8 @@ package:
   name: "safety_filter"
   version: "0.0.1"
   description: "Ein Sicherheitsfilter, der mit Ros-Acados-Nodegen generiert wurde."
-  author_email: "josch961@gmail.com"
-  author_name: "Josua Lindemann"
+  author_email: "my.email@gmail.com"
+  author_name: "My Name"
   license: "MIT"
   with_markers: true
 
