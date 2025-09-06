@@ -4,6 +4,7 @@ import scipy.linalg as spl
 import casadi as ca
 
 from acados_template import AcadosOcp, AcadosOcpSolver, builders, AcadosSim, AcadosSimSolver
+from acados_template.acados_ocp_ros import AcadosOcpRos
 from .skid_steer_model import get_skid_steer_model
 
 
@@ -184,6 +185,12 @@ def create_solver(
     json_file = os.path.join(os.path.dirname(__file__) if not gen_code_path else gen_code_path, 'safety_filter_ocp.json')
     if os.path.exists(json_file):
         os.remove(json_file)
+
+    # --- ROS Options ---
+    ocp.ros_opts = AcadosOcpRos()
+    ocp.ros_opts.node_name = "safety_filter_node"
+    ocp.ros_opts.namespace = "safety_filter"
+    ocp.ros_opts.package_name = "safety_filter_mpc"
 
     solver = AcadosOcpSolver(ocp, json_file=json_file, cmake_builder=cm_builder)
 
