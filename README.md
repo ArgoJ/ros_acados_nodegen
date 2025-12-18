@@ -5,6 +5,10 @@ One can also add a [`config.yaml`](ros_acados_nodegen/config/all_configs.yaml) t
 package information, publisher and subscriber as well as node parameters.   
 The generated `CMakeLists.txt` is build such that the acados C code files are generated during each build.
 
+## --- RECOMENDATION ---  
+Since v0.5.2 Acados has this feature directly usable as shown [here](https://github.com/acados/acados/blob/main/examples/acados_python/pendulum_on_cart/ros2/example_ros_minimal_ocp.py).
+Use the ocp.ros_opts instead and create the Ros code directly with acados, instead recreating the acados code with each new colcon build.
+
 ## Installation
 Acados don't need to be installed in the same environment, but recomendet.
 The package can be installed easily with:
